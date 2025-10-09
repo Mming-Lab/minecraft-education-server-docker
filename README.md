@@ -1,6 +1,17 @@
 # Minecraft Education Edition Dedicated Server - Docker
 
+[English](README.en.md) | 日本語
+
 Minecraft Education Edition Dedicated Serverを公式設定に準拠した完全な環境で実行。
+
+> **注意**: このサーバーはv1.21.110ベータ版を使用しています。
+
+## システム要件
+
+- Docker & Docker Compose
+- 2コア以上のCPU
+- 1GB以上のRAM
+- Azure AD グローバル管理者権限（初回認証とサーバー管理に必要）
 
 ## セットアップ
 
@@ -13,6 +24,23 @@ docker-compose up -d
 
 # 3. 認証（初回のみ）
 docker-compose logs -f minecraft-edu
+# ログに表示されるコードとURLでブラウザ認証を実行
+# 認証完了後、サーバーIDが表示されます（12桁の英数字）
+```
+
+### 初回起動後の重要情報
+
+認証完了後、ログに**サーバーID**が表示されます。このIDは以下の用途で必要です：
+- クライアントからの接続
+- サーバー管理ツールでの設定
+
+サーバーIDの確認方法：
+```bash
+# ログで確認
+docker-compose logs minecraft-edu | grep "Server ID"
+
+# または edu_server_session.json で確認
+cat edu_server_session.json
 ```
 
 ## ディレクトリ構成
@@ -133,6 +161,36 @@ docker-compose restart
 - `VIEW_DISTANCE`: 低減して負荷軽減
 - `TICK_DISTANCE`: 4-12の範囲で調整
 
+## サーバー管理
+
+基本的なゲーム設定は`.env`で管理できますが、以下の高度な設定には公式ツールが必要です：
+
+### 管理ツール（必須）
+
+- **[IT管理ポータル](https://aka.ms/dedicatedservers)** - テナント設定
+  - Dedicated Server機能の有効化
+  - クロステナントプレイの有効化
+
+- **[サーバー管理ツール（Python Notebook）](https://aka.ms/MCEDU-DS-Tooling)** - サーバー詳細設定
+  - サーバー名の設定
+  - パスコード保護
+  - ブロードキャスト設定（テナント全体に自動表示）
+  - クロステナント招待の管理
+
+> **注意**: ベータ版では、サーバー名やパスコードなどの設定はPython NotebookまたはAPIでのみ変更可能です。将来的にはWeb Portalで設定できるようになる予定です。
+
+### クロステナントプレイ
+
+複数のAzure ADテナント間でマルチプレイを行う場合：
+1. 両方のテナントでクロステナントプレイを有効化
+2. ホスト側が招待を送信（Python Notebookで実行）
+3. ゲスト側が招待を承認（Python Notebookで実行）
+4. allowlist.jsonまたはパスコードで接続制限を推奨
+
+詳細は[公式インストールガイド](https://edusupport.minecraft.net/hc/en-us/articles/41757415076884)を参照してください。
+
 ## 参考資料
 
-- [公式ドキュメント](https://edusupport.minecraft.net/hc/en-us/articles/41757415076884)
+- [Dedicated Server 101（概要）](https://edusupport.minecraft.net/hc/en-us/articles/41758309283348)
+- [インストールガイド](https://edusupport.minecraft.net/hc/en-us/articles/41757415076884)
+- [API ドキュメント](https://aka.ms/MCEDU-DS-Docs)
