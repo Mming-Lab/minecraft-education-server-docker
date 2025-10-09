@@ -1,0 +1,19 @@
+# Azure AD認証セッション（認証トークンを含む）
+edu_server_session.json
+
+# ワールドデータ（永続化されるが各環境固有）
+worlds/
+
+# 実行時生成されるサーバー設定ファイル
+server.properties
+
+# ログファイル
+*.log
+
+# Docker関連の一時ファイル
+.env.local
+.env.*.local
+
+
+CLAUDE.md
+.claude
