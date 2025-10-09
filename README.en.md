@@ -180,6 +180,42 @@ Basic game settings can be managed in `.env`, but advanced configurations requir
 
 > **Note**: In the beta version, server name, passcode, and other settings can only be changed via Python Notebook or API. These will be configurable via Web Portal in the future.
 
+### Server Activation (Important)
+
+**Simply starting the server is not enough for clients to connect.** You must set `Enabled` to `True` in the Server Management Tool.
+
+#### 1. Enter Server ID in Client
+
+![Server ID Input](docs/images/client-server-id-input.png)
+
+#### 2. Error When Enabled=False
+
+![Server Disabled Error](docs/images/server-disabled-error.png)
+
+Run the following in Server Management Tool (Python Notebook):
+```python
+# In tooling/edit_server_info cell
+{
+    "Enabled": True,  # Change this to True
+    "ServerName": "My Education Server",
+    "IsBroadcasted": False
+}
+```
+
+#### 3. Connection Success After Enabled=True
+
+![Connection Success](docs/images/server-enabled-success.png)
+
+#### 4. Port Configuration Issues
+
+When port publishing or firewall settings are incorrect:
+
+![Connection Error](docs/images/connection-error.png)
+
+- Verify `SERVER_PORT` and `SERVER_PORTV6` are correctly set in `.env`
+- Verify UDP ports (default 19132/19133) are open in firewall
+- Verify port mapping with `docker-compose ps`
+
 ### Cross-Tenant Play
 
 To enable multiplayer between multiple Azure AD tenants:

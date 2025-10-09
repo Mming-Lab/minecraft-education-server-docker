@@ -179,6 +179,42 @@ docker-compose restart
 
 > **注意**: ベータ版では、サーバー名やパスコードなどの設定はPython NotebookまたはAPIでのみ変更可能です。将来的にはWeb Portalで設定できるようになる予定です。
 
+### サーバーの有効化（重要）
+
+**サーバーを起動しただけではクライアントから接続できません。** サーバー管理ツールで`Enabled`を`True`に設定する必要があります。
+
+#### 1. クライアントでサーバーIDを入力
+
+![サーバーID入力](docs/images/client-server-id-input.png)
+
+#### 2. Enabled=Falseの場合はエラーが表示される
+
+![サーバー無効時のエラー](docs/images/server-disabled-error.png)
+
+サーバー管理ツール（Python Notebook）で以下を実行：
+```python
+# tooling/edit_server_info セルで
+{
+    "Enabled": True,  # これをTrueに変更
+    "ServerName": "My Education Server",
+    "IsBroadcasted": False
+}
+```
+
+#### 3. Enabled=True後は接続成功
+
+![接続成功](docs/images/server-enabled-success.png)
+
+#### 4. ポート設定ミスの場合
+
+ポート公開やファイアウォール設定が正しくない場合：
+
+![接続エラー](docs/images/connection-error.png)
+
+- `.env`の`SERVER_PORT`と`SERVER_PORTV6`が正しく設定されているか確認
+- ファイアウォールで該当ポート（デフォルト19132/19133）のUDPが開放されているか確認
+- `docker-compose ps`でポートマッピングが正しいか確認
+
 ### クロステナントプレイ
 
 複数のAzure ADテナント間でマルチプレイを行う場合：
