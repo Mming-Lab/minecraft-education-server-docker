@@ -68,7 +68,7 @@ minecraft-education-server-docker/
 
 ### Server Basic Settings
 ```env
-SERVER_PUBLIC_IP=localhost       # Server IP address
+SERVER_PUBLIC_IP=                # Docker host IP address (LAN: 192.168.x.x, external: global IP/domain)
 SERVER_PORT=19132                # IPv4 port
 SERVER_PORTV6=19133             # IPv6 port
 ```
