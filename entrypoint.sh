@@ -1,17 +1,26 @@
 #!/bin/bash
 set -e
 
+# ================================================
+# 設定値
+# ================================================
+CONFIG_DIR="configs"
+SESSION_DIR="sessions"
+SESSION_FILE="${SESSION_DIR}/edu_server_session.json"
+
+# ================================================
 # 初期ファイル作成（存在しない場合のみ）
-if [ ! -f "allowlist.json" ]; then
-    echo '[]' > allowlist.json
+# ================================================
+if [ ! -f "${CONFIG_DIR}/allowlist.json" ]; then
+    echo '[]' > "${CONFIG_DIR}/allowlist.json"
 fi
 
-if [ ! -f "permissions.json" ]; then
-    echo '[]' > permissions.json
+if [ ! -f "${CONFIG_DIR}/permissions.json" ]; then
+    echo '[]' > "${CONFIG_DIR}/permissions.json"
 fi
 
-if [ ! -f "packetlimitconfig.json" ]; then
-    cat > packetlimitconfig.json << 'EOF'
+if [ ! -f "${CONFIG_DIR}/packetlimitconfig.json" ]; then
+    cat > "${CONFIG_DIR}/packetlimitconfig.json" << 'EOF'
 {
 	"limitGroups": [{
 		"minecraftPacketIds": [193, 4],
@@ -36,6 +45,11 @@ if [ ! -f "packetlimitconfig.json" ]; then
 EOF
 fi
 
+# 設定ファイルへのシンボリックリンクを作成（サーバーが参照するため）
+ln -sf "${CONFIG_DIR}/allowlist.json" allowlist.json
+ln -sf "${CONFIG_DIR}/permissions.json" permissions.json
+ln -sf "${CONFIG_DIR}/packetlimitconfig.json" packetlimitconfig.json
+
 # 環境変数からserver.propertiesの値を動的に更新
 if [ -f "server.properties" ]; then
     # server-public-ip
@@ -51,6 +65,11 @@ if [ -f "server.properties" ]; then
     # server-portv6
     if [ -n "$SERVER_PORTV6" ]; then
         sed -i "s|^server-portv6=.*|server-portv6=${SERVER_PORTV6}|" server.properties
+    fi
+
+    # level-name
+    if [ -n "$LEVEL_NAME" ]; then
+        sed -i "s|^level-name=.*|level-name=${LEVEL_NAME}|" server.properties
     fi
 
     # gamemode
@@ -103,11 +122,6 @@ if [ -f "server.properties" ]; then
         sed -i "s|^max-threads=.*|max-threads=${MAX_THREADS}|" server.properties
     fi
 
-    # level-name
-    if [ -n "$LEVEL_NAME" ]; then
-        sed -i "s|^level-name=.*|level-name=${LEVEL_NAME}|" server.properties
-    fi
-
     # level-seed
     if [ -n "$LEVEL_SEED" ]; then
         sed -i "s|^level-seed=.*|level-seed=${LEVEL_SEED}|" server.properties
@@ -129,14 +143,19 @@ if [ -f "server.properties" ]; then
     fi
 fi
 
+# ================================================
 # 初回起動チェック
-if [ ! -f "edu_server_session.json" ] || [ ! -s "edu_server_session.json" ]; then
+# ================================================
+if [ ! -f "${SESSION_FILE}" ] || [ ! -s "${SESSION_FILE}" ]; then
     echo "===================================="
     echo "初回起動 - Device Code認証が必要"
     echo "===================================="
     # 空ファイルを作成（存在確認用）
-    touch edu_server_session.json
+    touch "${SESSION_FILE}"
 fi
+
+# セッションファイルへのシンボリックリンクを作成（サーバーが参照するため）
+ln -sf "${SESSION_FILE}" edu_server_session.json
 
 # サーバー起動
 exec ./bedrock_server_edu

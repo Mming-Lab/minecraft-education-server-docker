@@ -1,42 +1,89 @@
 version: '3.8'
 
 services:
-  minecraft-edu:
+  # ================================================
+  # ワールド1（デフォルト）
+  # ================================================
+  minecraft-edu-world1:
     build: .
-    container_name: minecraft-edu-server
+    container_name: minecraft-edu-world1
+    hostname: mcedu-world1
     ports:
-      - "${SERVER_PORT:-19132}:${SERVER_PORT:-19132}/udp"
-      - "${SERVER_PORTV6:-19133}:${SERVER_PORTV6:-19133}/udp"
+      - "${SERVER_PORT_WORLD1}:${SERVER_PORT_WORLD1}/udp"
+      - "${SERVER_PORTV6_WORLD1}:${SERVER_PORTV6_WORLD1}/udp"
     environment:
-      SERVER_PUBLIC_IP: ${SERVER_PUBLIC_IP:-localhost}
-      SERVER_PORT: ${SERVER_PORT:-19132}
-      SERVER_PORTV6: ${SERVER_PORTV6:-19133}
-      GAMEMODE: ${GAMEMODE:-creative}
-      DIFFICULTY: ${DIFFICULTY:-easy}
-      MAX_PLAYERS: ${MAX_PLAYERS:-40}
-      ALLOW_CHEATS: ${ALLOW_CHEATS:-false}
-      ALLOW_LIST: ${ALLOW_LIST:-false}
-      CHAT_RESTRICTION: ${CHAT_RESTRICTION:-None}
-      VIEW_DISTANCE: ${VIEW_DISTANCE:-32}
-      TICK_DISTANCE: ${TICK_DISTANCE:-4}
-      PLAYER_IDLE_TIMEOUT: ${PLAYER_IDLE_TIMEOUT:-30}
-      MAX_THREADS: ${MAX_THREADS:-8}
-      LEVEL_NAME: ${LEVEL_NAME:-Bedrock level}
-      LEVEL_SEED: ${LEVEL_SEED:-}
-      DEFAULT_PLAYER_PERMISSION_LEVEL: ${DEFAULT_PLAYER_PERMISSION_LEVEL:-member}
-      TEXTUREPACK_REQUIRED: ${TEXTUREPACK_REQUIRED:-true}
-      CONTENT_LOG_FILE_ENABLED: ${CONTENT_LOG_FILE_ENABLED:-false}
+      SERVER_PUBLIC_IP: ${SERVER_PUBLIC_IP}
+      SERVER_PORT: ${SERVER_PORT_WORLD1}
+      SERVER_PORTV6: ${SERVER_PORTV6_WORLD1}
+      LEVEL_NAME: ${LEVEL_NAME_WORLD1:-${LEVEL_NAME_COMMON:-Bedrock level}}
+      GAMEMODE: ${GAMEMODE_WORLD1:-${GAMEMODE_COMMON:-creative}}
+      DIFFICULTY: ${DIFFICULTY_WORLD1:-${DIFFICULTY_COMMON:-easy}}
+      MAX_PLAYERS: ${MAX_PLAYERS_WORLD1:-${MAX_PLAYERS_COMMON:-40}}
+      ALLOW_CHEATS: ${ALLOW_CHEATS_WORLD1:-${ALLOW_CHEATS_COMMON:-false}}
+      ALLOW_LIST: ${ALLOW_LIST_WORLD1:-${ALLOW_LIST_COMMON:-false}}
+      CHAT_RESTRICTION: ${CHAT_RESTRICTION_WORLD1:-${CHAT_RESTRICTION_COMMON:-None}}
+      VIEW_DISTANCE: ${VIEW_DISTANCE_WORLD1:-${VIEW_DISTANCE_COMMON:-32}}
+      TICK_DISTANCE: ${TICK_DISTANCE_WORLD1:-${TICK_DISTANCE_COMMON:-4}}
+      PLAYER_IDLE_TIMEOUT: ${PLAYER_IDLE_TIMEOUT_WORLD1:-${PLAYER_IDLE_TIMEOUT_COMMON:-30}}
+      MAX_THREADS: ${MAX_THREADS_WORLD1:-${MAX_THREADS_COMMON:-8}}
+      LEVEL_SEED: ${LEVEL_SEED_WORLD1:-}
+      DEFAULT_PLAYER_PERMISSION_LEVEL: ${DEFAULT_PLAYER_PERMISSION_LEVEL_WORLD1:-${DEFAULT_PLAYER_PERMISSION_LEVEL_COMMON:-member}}
+      TEXTUREPACK_REQUIRED: ${TEXTUREPACK_REQUIRED_WORLD1:-${TEXTUREPACK_REQUIRED_COMMON:-true}}
+      CONTENT_LOG_FILE_ENABLED: ${CONTENT_LOG_FILE_ENABLED_WORLD1:-${CONTENT_LOG_FILE_ENABLED_COMMON:-false}}
     volumes:
-      # ワールドデータ（永続化必須）
-      - ./worlds:/minecraft/worlds
+      # ワールドデータ（永続化 - 自動作成）
+      - ./worlds/world1:/minecraft/worlds
 
-      # 認証セッション（永続化必須 - Device Code認証情報）
-      - ./edu_server_session.json:/minecraft/edu_server_session.json
+      # 認証セッション（永続化 - 自動作成）
+      - ./sessions/world1:/minecraft/sessions
 
-      # 設定ファイル（ホストで編集可能）
-      - ./allowlist.json:/minecraft/allowlist.json
-      - ./permissions.json:/minecraft/permissions.json
-      - ./packetlimitconfig.json:/minecraft/packetlimitconfig.json
+      # 設定ファイル（永続化 - 自動作成）
+      - ./configs/world1:/minecraft/configs
     restart: unless-stopped
     stdin_open: true
     tty: true
+
+  # ================================================
+  # 複数ワールド追加用テンプレート
+  # ================================================
+  # 新しいワールドを追加する場合:
+  #   1. 以下のテンプレートをコピー
+  #   2. エディタの「検索・置換」で {N} → 実際の番号に置換
+  #      例: {N} → 2 で「ワールド2」が完成
+  #   3. .envにも対応する環境変数を追加
+  #
+  # テンプレート:
+#
+# minecraft-edu-world{N}:
+#   build: .
+#   container_name: minecraft-edu-world{N}
+#   hostname: mcedu-world{N}
+#   ports:
+#     - "${SERVER_PORT_WORLD_{N}}:${SERVER_PORT_WORLD_{N}}/udp"
+#     - "${SERVER_PORTV6_WORLD_{N}}:${SERVER_PORTV6_WORLD_{N}}/udp"
+#   environment:
+#     SERVER_PUBLIC_IP: ${SERVER_PUBLIC_IP}
+#     SERVER_PORT: ${SERVER_PORT_WORLD_{N}}
+#     SERVER_PORTV6: ${SERVER_PORTV6_WORLD_{N}}
+#     LEVEL_NAME: ${LEVEL_NAME_WORLD_{N}:-${LEVEL_NAME_COMMON:-Bedrock level}}
+#     GAMEMODE: ${GAMEMODE_WORLD_{N}:-${GAMEMODE_COMMON:-creative}}
+#     DIFFICULTY: ${DIFFICULTY_WORLD_{N}:-${DIFFICULTY_COMMON:-easy}}
+#     MAX_PLAYERS: ${MAX_PLAYERS_WORLD_{N}:-${MAX_PLAYERS_COMMON:-40}}
+#     ALLOW_CHEATS: ${ALLOW_CHEATS_WORLD_{N}:-${ALLOW_CHEATS_COMMON:-false}}
+#     ALLOW_LIST: ${ALLOW_LIST_WORLD_{N}:-${ALLOW_LIST_COMMON:-false}}
+#     CHAT_RESTRICTION: ${CHAT_RESTRICTION_WORLD_{N}:-${CHAT_RESTRICTION_COMMON:-None}}
+#     VIEW_DISTANCE: ${VIEW_DISTANCE_WORLD_{N}:-${VIEW_DISTANCE_COMMON:-32}}
+#     TICK_DISTANCE: ${TICK_DISTANCE_WORLD_{N}:-${TICK_DISTANCE_COMMON:-4}}
+#     PLAYER_IDLE_TIMEOUT: ${PLAYER_IDLE_TIMEOUT_WORLD_{N}:-${PLAYER_IDLE_TIMEOUT_COMMON:-30}}
+#     MAX_THREADS: ${MAX_THREADS_WORLD_{N}:-${MAX_THREADS_COMMON:-8}}
+#     LEVEL_SEED: ${LEVEL_SEED_WORLD_{N}:-}
+#     DEFAULT_PLAYER_PERMISSION_LEVEL: ${DEFAULT_PLAYER_PERMISSION_LEVEL_WORLD_{N}:-${DEFAULT_PLAYER_PERMISSION_LEVEL_COMMON:-member}}
+#     TEXTUREPACK_REQUIRED: ${TEXTUREPACK_REQUIRED_WORLD_{N}:-${TEXTUREPACK_REQUIRED_COMMON:-true}}
+#     CONTENT_LOG_FILE_ENABLED: ${CONTENT_LOG_FILE_ENABLED_WORLD_{N}:-${CONTENT_LOG_FILE_ENABLED_COMMON:-false}}
+#   volumes:
+#     - ./worlds/world{N}:/minecraft/worlds
+#     - ./sessions/world{N}:/minecraft/sessions
+#     - ./configs/world{N}:/minecraft/configs
+#   restart: unless-stopped
+#   stdin_open: true
+#   tty: true
