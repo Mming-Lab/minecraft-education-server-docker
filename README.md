@@ -19,10 +19,12 @@ Docker環境でMinecraft Education Edition Dedicated Serverを実行します。
 ```bash
 # 必須設定
 SERVER_PORT_WORLD1=19132
-SERVER_PORTV6_WORLD1=19133
-
-# DockerホストのIPアドレス（必須）
 SERVER_PUBLIC_IP=
+
+# 任意設定（IPv6を使用する場合）
+#SERVER_PORTV6_WORLD1=19133
+
+# SERVER_PUBLIC_IPの設定例
 # 例1（LAN内のみ）: SERVER_PUBLIC_IP=192.168.1.100
 # 例2（インターネット公開）: SERVER_PUBLIC_IP=203.0.113.10 またはドメイン名
 ```
