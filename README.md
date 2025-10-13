@@ -93,7 +93,7 @@ docker-compose logs -f minecraft-edu-world1
    ```bash
    # .env
    SERVER_PORT_WORLD2=19134
-   SERVER_PORTV6_WORLD2=19135
+   #SERVER_PORTV6_WORLD2=19135  # IPv6を使用する場合のみ
    ```
 
 4. **コンテナを起動**
