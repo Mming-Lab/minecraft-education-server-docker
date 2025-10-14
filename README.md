@@ -14,22 +14,25 @@ Docker環境でMinecraft Education Edition Dedicated Serverを実行します。
 
 ### 1. 環境設定
 
-`.env`ファイルを編集してポート番号を設定：
+`.env`ファイルを編集（**必須**）：
 
 ```bash
-# 必須設定
-SERVER_PORT_WORLD1=19132
-SERVER_PUBLIC_IP=
 
-# 任意設定（IPv6を使用する場合）
-#SERVER_PORTV6_WORLD1=19133
+# 公開IPアドレス（必須設定）
+SERVER_PUBLIC_IP=192.168.1.100
+# 例1（LAN内のみ）: dockerホストのIPアドレス
+# 例2（インターネット公開）: グローバルIPアドレスまたはドメイン名
 
-# SERVER_PUBLIC_IPの設定例
-# 例1（LAN内のみ）: SERVER_PUBLIC_IP=192.168.1.100
-# 例2（インターネット公開）: SERVER_PUBLIC_IP=203.0.113.10 またはドメイン名
+
+# ポート番号（必須設定）
+SERVER_PORT_WORLD_1=19132
+# 必ず設定してください。未設定の場合はエラーになります
+# セキュリティ上、デフォルトポート19132以外を推奨（例: 19142）
+
+# IPv6ポート（任意設定）
+#SERVER_PORTV6_WORLD_1=19133
+# IPv6を使用する場合のみ設定
 ```
-
-> **セキュリティ推奨**: デフォルトポート19132/19133以外の使用を推奨します（例: 19142/19143）。
 
 ### 2. サーバー起動
 
@@ -38,11 +41,8 @@ SERVER_PUBLIC_IP=
 docker-compose build
 docker-compose up -d
 
-# 初回認証（ログに表示されるURLとコードでブラウザ認証）
+# 初回認証（Device Codeを確認）
 docker-compose logs -f minecraft-edu-world1
-
-# 複数ワールドの場合は各ワールドごとに認証
-# docker-compose logs -f minecraft-edu-world2
 ```
 
 ### 3. サーバー有効化
@@ -73,6 +73,7 @@ docker-compose logs -f minecraft-edu-world1
 ## 設定管理
 
 すべての設定は`.env`ファイルで管理します。設定変更後は`docker-compose restart`で反映されます。
+「ワールド作成後に変更しても反映されるもの」と「一度生成したら反映されない（または部分的にしか反映されない）もの」があります。
 
 詳細な設定項目は`.env`ファイルを参照してください。
 
@@ -89,11 +90,11 @@ docker-compose logs -f minecraft-edu-world1
    - エディタの「検索・置換」機能で `{N}` → `2` に一括置換
    - 例: `minecraft-edu-world{N}` → `minecraft-edu-world2`
 
-3. **.envにポート番号を設定**
+3. **.envにポート番号を設定（必須）**
    ```bash
    # .env
-   SERVER_PORT_WORLD2=19134
-   #SERVER_PORTV6_WORLD2=19135  # IPv6を使用する場合のみ
+   SERVER_PORT_WORLD_2=19134  # 必須: World1とは異なるポート番号
+   #SERVER_PORTV6_WORLD_2=19135  # 任意: IPv6を使用する場合のみ
    ```
 
 4. **コンテナを起動**
@@ -111,14 +112,14 @@ docker-compose logs -f minecraft-edu-world1
 
 ```bash
 # .envファイル
-GAMEMODE_COMMON=survival      # 全ワールドのデフォルト
-GAMEMODE_WORLD1=creative      # World1だけ個別設定
-# GAMEMODE_WORLD2は未設定 → GAMEMODE_COMMONが使われる
+GAMEMODE_COMMON=creative       # 全ワールドのデフォルト
+GAMEMODE_WORLD_1=survival      # World1だけ個別設定
+# GAMEMODE_WORLD_2は未設定 → GAMEMODE_COMMONが使われる
 ```
 
 **結果**:
-- **World1** → `creative`（個別設定が優先）
-- **World2以降** → `survival`（共通設定を使用）
+- **World1** → `survival`（個別設定が優先）
+- **World2以降** → `creative`（共通設定を使用）
 - **すべて未設定の場合** → docker-compose.ymlのデフォルト値を使用
 
 ## コマンド
@@ -179,7 +180,7 @@ docker-compose down -v
    このIPアドレスとポート番号でクライアントから接続できるか確認
 2. **.envの設定確認**
    - `SERVER_PUBLIC_IP`: DockerホストのIPアドレス（LAN内ならプライベートIP、インターネット経由ならパブリックIP/ドメイン）
-   - `SERVER_PORT_WORLD1`と`SERVER_PORTV6_WORLD1`: ポート番号が設定されているか
+   - `SERVER_PORT_WORLD_1`と`SERVER_PORTV6_WORLD_1`: ポート番号が設定されているか
 3. **ファイアウォール確認**: 該当ポートのUDPが開放されているか
 4. **ルーター/NAT確認**（インターネット経由の場合）: ポートフォワーディングが設定されているか
 
