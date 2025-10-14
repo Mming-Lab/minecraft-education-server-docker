@@ -47,8 +47,9 @@ fi
 
 # 設定ファイルへのシンボリックリンクを作成（サーバーが参照するため）
 ln -sf "${CONFIG_DIR}/allowlist.json" allowlist.json
-ln -sf "${CONFIG_DIR}/permissions.json" permissions.json
+#ln -sf "${CONFIG_DIR}/permissions.json" permissions.json
 ln -sf "${CONFIG_DIR}/packetlimitconfig.json" packetlimitconfig.json
+
 
 # 環境変数からserver.propertiesの値を動的に更新
 if [ -f "server.properties" ]; then
@@ -147,9 +148,9 @@ fi
 # 初回起動チェック
 # ================================================
 if [ ! -f "${SESSION_FILE}" ] || [ ! -s "${SESSION_FILE}" ]; then
-    echo "===================================="
-    echo "初回起動 - Device Code認証が必要"
-    echo "===================================="
+    echo "=============================================="
+    echo "【${LEVEL_NAME}】初回起動 - Device Code認証が必要"
+    echo "=============================================="
     # 空ファイルを作成（存在確認用）
     touch "${SESSION_FILE}"
 fi

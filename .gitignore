@@ -7,21 +7,9 @@ worlds/
 # 設定ファイル（各環境固有）
 configs/
 
-# 実行時生成されるサーバー設定ファイル
-server.properties
-
 # ログファイル
 *.log
 
-# Docker関連の一時ファイル
-.env.local
-.env.*.local
-
-# 旧形式のファイル（後方互換性のため残す）
-edu_server_session.json
-allowlist.json
-permissions.json
-packetlimitconfig.json
-
+# claude関連
 CLAUDE.md
 .claude
