@@ -10,6 +10,9 @@ configs/
 # ログファイル
 *.log
 
+# VSCode設定（各環境固有）
+.vscode/
+
 # claude関連
 CLAUDE.md
 .claude
