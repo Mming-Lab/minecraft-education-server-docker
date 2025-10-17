@@ -36,54 +36,69 @@ services:
 
       # 設定ファイル（永続化 - 自動作成）
       - ./configs/world1:/minecraft/configs
+
+      # ログ（logrotate コンテナと共有）
+      - ./logs/world1:/minecraft/logs
+
+    logging:
+      driver: "local"
+      options:
+        max-size: "100m"    # ファイルが 100MB で自動ローテーション
+        max-file: "7"       # 7世代保持（超過分は自動削除）
+        compress: "true"    # 自動圧縮
+
     restart: unless-stopped
     stdin_open: true
     tty: true
 
-
   # ================================================
   # 複数ワールド追加用テンプレート
   # ================================================
-  # 新しいワールドを追加する場合:
+  # さらにワールドを追加する場合:
   #   1. 以下のテンプレートをコピー
   #   2. エディタの「検索・置換」で {N} → 実際の番号に置換
-  #      例: {N} → 2 で「ワールド2」が完成
+  #      例: {N} → 3 で「ワールド3」が完成
   #   3. .envにも対応する環境変数を追加
-  #
-  # 注意: IPv6を使用する場合は、ports:セクションに以下を追加してください
-  #       - "${SERVER_PORTV6_WORLD_{N}}:${SERVER_PORTV6_WORLD_{N}}/udp"
+  #   4. docker-compose up -d minecraft-edu-world3 で起動
   #
   # テンプレート:
-#
-# minecraft-edu-world{N}:
-#   build: .
-#   container_name: minecraft-edu-world{N}
-#   hostname: mcedu-world{N}
-#   ports:
-#     - "${SERVER_PORT_WORLD_{N}}:${SERVER_PORT_WORLD_{N}}/udp"
-#   environment:
-#     SERVER_PUBLIC_IP: ${SERVER_PUBLIC_IP}
-#     SERVER_PORT: ${SERVER_PORT_WORLD_{N}}
-#     SERVER_PORTV6: ${SERVER_PORTV6_WORLD_{N}:-}
-#     LEVEL_NAME: ${LEVEL_NAME_WORLD_{N}:-${LEVEL_NAME_COMMON:-Bedrock level}}
-#     GAMEMODE: ${GAMEMODE_WORLD_{N}:-${GAMEMODE_COMMON:-creative}}
-#     DIFFICULTY: ${DIFFICULTY_WORLD_{N}:-${DIFFICULTY_COMMON:-easy}}
-#     MAX_PLAYERS: ${MAX_PLAYERS_WORLD_{N}:-${MAX_PLAYERS_COMMON:-40}}
-#     ALLOW_CHEATS: ${ALLOW_CHEATS_WORLD_{N}:-${ALLOW_CHEATS_COMMON:-false}}
-#     ALLOW_LIST: ${ALLOW_LIST_WORLD_{N}:-${ALLOW_LIST_COMMON:-false}}
-#     CHAT_RESTRICTION: ${CHAT_RESTRICTION_WORLD_{N}:-${CHAT_RESTRICTION_COMMON:-None}}
-#     VIEW_DISTANCE: ${VIEW_DISTANCE_WORLD_{N}:-${VIEW_DISTANCE_COMMON:-32}}
-#     TICK_DISTANCE: ${TICK_DISTANCE_WORLD_{N}:-${TICK_DISTANCE_COMMON:-4}}
-#     PLAYER_IDLE_TIMEOUT: ${PLAYER_IDLE_TIMEOUT_WORLD_{N}:-${PLAYER_IDLE_TIMEOUT_COMMON:-30}}
-#     MAX_THREADS: ${MAX_THREADS_WORLD_{N}:-${MAX_THREADS_COMMON:-8}}
-#     LEVEL_SEED: ${LEVEL_SEED_WORLD_{N}:-}
-#     DEFAULT_PLAYER_PERMISSION_LEVEL: ${DEFAULT_PLAYER_PERMISSION_LEVEL_WORLD_{N}:-${DEFAULT_PLAYER_PERMISSION_LEVEL_COMMON:-member}}
-#     TEXTUREPACK_REQUIRED: ${TEXTUREPACK_REQUIRED_WORLD_{N}:-${TEXTUREPACK_REQUIRED_COMMON:-true}}
-#     CONTENT_LOG_FILE_ENABLED: ${CONTENT_LOG_FILE_ENABLED_WORLD_{N}:-${CONTENT_LOG_FILE_ENABLED_COMMON:-false}}
-#   volumes:
-#     - ./worlds/world{N}:/minecraft/worlds
-#     - ./sessions/world{N}:/minecraft/sessions
-#     - ./configs/world{N}:/minecraft/configs
-#   restart: unless-stopped
-#   stdin_open: true
-#   tty: true
+  #
+  # minecraft-edu-world{N}:
+  #   build: .
+  #   container_name: minecraft-edu-world{N}
+  #   hostname: mcedu-world{N}
+  #   ports:
+  #     - "${SERVER_PORT_WORLD_{N}}:${SERVER_PORT_WORLD_{N}}/udp"
+  #   environment:
+  #     SERVER_PUBLIC_IP: ${SERVER_PUBLIC_IP}
+  #     SERVER_PORT: ${SERVER_PORT_WORLD_{N}}
+  #     SERVER_PORTV6: ${SERVER_PORTV6_WORLD_{N}:-}
+  #     LEVEL_NAME: ${LEVEL_NAME_WORLD_{N}:-${LEVEL_NAME_COMMON:-Bedrock level}}
+  #     GAMEMODE: ${GAMEMODE_WORLD_{N}:-${GAMEMODE_COMMON:-creative}}
+  #     DIFFICULTY: ${DIFFICULTY_WORLD_{N}:-${DIFFICULTY_COMMON:-easy}}
+  #     MAX_PLAYERS: ${MAX_PLAYERS_WORLD_{N}:-${MAX_PLAYERS_COMMON:-40}}
+  #     ALLOW_CHEATS: ${ALLOW_CHEATS_WORLD_{N}:-${ALLOW_CHEATS_COMMON:-false}}
+  #     ALLOW_LIST: ${ALLOW_LIST_WORLD_{N}:-${ALLOW_LIST_COMMON:-false}}
+  #     CHAT_RESTRICTION: ${CHAT_RESTRICTION_WORLD_{N}:-${CHAT_RESTRICTION_COMMON:-None}}
+  #     VIEW_DISTANCE: ${VIEW_DISTANCE_WORLD_{N}:-${VIEW_DISTANCE_COMMON:-32}}
+  #     TICK_DISTANCE: ${TICK_DISTANCE_WORLD_{N}:-${TICK_DISTANCE_COMMON:-4}}
+  #     PLAYER_IDLE_TIMEOUT: ${PLAYER_IDLE_TIMEOUT_WORLD_{N}:-${PLAYER_IDLE_TIMEOUT_COMMON:-30}}
+  #     MAX_THREADS: ${MAX_THREADS_WORLD_{N}:-${MAX_THREADS_COMMON:-8}}
+  #     LEVEL_SEED: ${LEVEL_SEED_WORLD_{N}:-}
+  #     DEFAULT_PLAYER_PERMISSION_LEVEL: ${DEFAULT_PLAYER_PERMISSION_LEVEL_WORLD_{N}:-${DEFAULT_PLAYER_PERMISSION_LEVEL_COMMON:-member}}
+  #     TEXTUREPACK_REQUIRED: ${TEXTUREPACK_REQUIRED_WORLD_{N}:-${TEXTUREPACK_REQUIRED_COMMON:-true}}
+  #     CONTENT_LOG_FILE_ENABLED: ${CONTENT_LOG_FILE_ENABLED_WORLD_{N}:-${CONTENT_LOG_FILE_ENABLED_COMMON:-false}}
+  #   volumes:
+  #     - ./worlds/world{N}:/minecraft/worlds
+  #     - ./sessions/world{N}:/minecraft/sessions
+  #     - ./configs/world{N}:/minecraft/configs
+  #     - ./logs/world{N}:/minecraft/logs
+  #   logging:
+  #     driver: "local"
+  #     options:
+  #       max-size: "100m"
+  #       max-file: "7"
+  #       compress: "true"
+  #   restart: unless-stopped
+  #   stdin_open: true
+  #   tty: true

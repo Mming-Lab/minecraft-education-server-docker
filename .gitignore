@@ -7,12 +7,12 @@ worlds/
 # 設定ファイル（各環境固有）
 configs/
 
-# ログファイル
+# ログファイル（ディレクトリ全体）
+logs/
 *.log
 
 # VSCode設定（各環境固有）
 .vscode/
 
 # claude関連
-CLAUDE.md
 .claude

@@ -47,7 +47,7 @@ fi
 
 # 設定ファイルへのシンボリックリンクを作成（サーバーが参照するため）
 ln -sf "${CONFIG_DIR}/allowlist.json" allowlist.json
-#ln -sf "${CONFIG_DIR}/permissions.json" permissions.json
+ln -sf "${CONFIG_DIR}/permissions.json" permissions.json
 ln -sf "${CONFIG_DIR}/packetlimitconfig.json" packetlimitconfig.json
 
 
@@ -158,5 +158,29 @@ fi
 # セッションファイルへのシンボリックリンクを作成（サーバーが参照するため）
 ln -sf "${SESSION_FILE}" edu_server_session.json
 
+# ================================================
+# ログディレクトリの初期化
+# ================================================
+mkdir -p /minecraft/logs
+
+# ログファイルパス
+LOG_FILE="/minecraft/logs/server_$(date +%Y-%m-%d).log"
+
+# ================================================
+# サーバー起動時のメッセージをログに出力
+# ================================================
+echo "==========================================" >> "$LOG_FILE"
+echo "【$(date '+%Y-%m-%d %H:%M:%S')】Minecraft Education Edition Server Start" >> "$LOG_FILE"
+echo "World: ${LEVEL_NAME} | Mode: ${GAMEMODE} | Port: ${SERVER_PORT}" >> "$LOG_FILE"
+echo "==========================================" >> "$LOG_FILE"
+
+# ================================================
+# stdout/stderr をログファイルにリダイレクト
+# ================================================
+exec 1>>"$LOG_FILE"
+exec 2>&1
+
+# ================================================
 # サーバー起動
+# ================================================
 exec ./bedrock_server_edu
