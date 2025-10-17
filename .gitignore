@@ -15,4 +15,5 @@ logs/
 .vscode/
 
 # claude関連
+CLAUDE.md
 .claude
