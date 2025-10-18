@@ -4,23 +4,25 @@ set -e
 # ================================================
 # 設定値
 # ================================================
-CONFIG_DIR="configs"
+WORLD_DATA_DIR="/minecraft/world-data"
 SESSION_DIR="sessions"
 SESSION_FILE="${SESSION_DIR}/edu_server_session.json"
 
 # ================================================
+# ワールドデータディレクトリの初期化
+# ================================================
+mkdir -p "${WORLD_DATA_DIR}"
+mkdir -p "${WORLD_DATA_DIR}/worlds"
+
+# ================================================
 # 初期ファイル作成（存在しない場合のみ）
 # ================================================
-if [ ! -f "${CONFIG_DIR}/allowlist.json" ]; then
-    echo '[]' > "${CONFIG_DIR}/allowlist.json"
+if [ ! -f "${WORLD_DATA_DIR}/allowlist.json" ]; then
+    echo '[]' > "${WORLD_DATA_DIR}/allowlist.json"
 fi
 
-if [ ! -f "${CONFIG_DIR}/permissions.json" ]; then
-    echo '[]' > "${CONFIG_DIR}/permissions.json"
-fi
-
-if [ ! -f "${CONFIG_DIR}/packetlimitconfig.json" ]; then
-    cat > "${CONFIG_DIR}/packetlimitconfig.json" << 'EOF'
+if [ ! -f "${WORLD_DATA_DIR}/packetlimitconfig.json" ]; then
+    cat > "${WORLD_DATA_DIR}/packetlimitconfig.json" << 'EOF'
 {
 	"limitGroups": [{
 		"minecraftPacketIds": [193, 4],
@@ -45,10 +47,15 @@ if [ ! -f "${CONFIG_DIR}/packetlimitconfig.json" ]; then
 EOF
 fi
 
-# 設定ファイルへのシンボリックリンクを作成（サーバーが参照するため）
-ln -sf "${CONFIG_DIR}/allowlist.json" allowlist.json
-ln -sf "${CONFIG_DIR}/permissions.json" permissions.json
-ln -sf "${CONFIG_DIR}/packetlimitconfig.json" packetlimitconfig.json
+# ================================================
+# ワールドデータフォルダへのシンボリックリンク作成
+# ================================================
+# サーバーが /minecraft 直下から参照するため、シンボリックリンクでマップ
+ln -sf "${WORLD_DATA_DIR}/allowlist.json" allowlist.json
+ln -sf "${WORLD_DATA_DIR}/packetlimitconfig.json" packetlimitconfig.json
+
+# ゲームワールドデータへのシンボリックリンク
+ln -sf "${WORLD_DATA_DIR}/worlds" worlds
 
 
 # 環境変数からserver.propertiesの値を動的に更新
@@ -147,10 +154,9 @@ fi
 # ================================================
 # 初回起動チェック
 # ================================================
+FIRST_BOOT=false
 if [ ! -f "${SESSION_FILE}" ] || [ ! -s "${SESSION_FILE}" ]; then
-    echo "=============================================="
-    echo "【${LEVEL_NAME}】初回起動 - Device Code認証が必要"
-    echo "=============================================="
+    FIRST_BOOT=true
     # 空ファイルを作成（存在確認用）
     touch "${SESSION_FILE}"
 fi
@@ -172,7 +178,17 @@ LOG_FILE="/minecraft/logs/server_$(date +%Y-%m-%d).log"
 echo "==========================================" >> "$LOG_FILE"
 echo "【$(date '+%Y-%m-%d %H:%M:%S')】Minecraft Education Edition Server Start" >> "$LOG_FILE"
 echo "World: ${LEVEL_NAME} | Mode: ${GAMEMODE} | Port: ${SERVER_PORT}" >> "$LOG_FILE"
+if [ "$FIRST_BOOT" = true ]; then
+    echo "【初回起動】Device Code認証が必要です" >> "$LOG_FILE"
+fi
 echo "==========================================" >> "$LOG_FILE"
+
+# 初回起動メッセージをコンソール出力
+if [ "$FIRST_BOOT" = true ]; then
+    echo "=============================================="
+    echo "【${LEVEL_NAME}】初回起動 - Device Code認証が必要"
+    echo "=============================================="
+fi
 
 # ================================================
 # stdout/stderr をログファイルにリダイレクト

@@ -28,16 +28,21 @@ services:
       TEXTUREPACK_REQUIRED: ${TEXTUREPACK_REQUIRED_WORLD_1:-${TEXTUREPACK_REQUIRED_COMMON:-true}}
       CONTENT_LOG_FILE_ENABLED: ${CONTENT_LOG_FILE_ENABLED_WORLD_1:-${CONTENT_LOG_FILE_ENABLED_COMMON:-false}}
     volumes:
-      # ワールドデータ（永続化 - 自動作成）
-      - ./worlds/world1:/minecraft/worlds
+      # ワールドデータ＋設定ファイル統合（永続化 - 自動作成）
+      # worlds/world1/ 配下に以下のファイル/フォルダが含まれます:
+      #   - worlds/          ← ゲームワールドデータ
+      #   - behavior_packs/  ← 動作パック（オプション）
+      #   - resource_packs/  ← リソースパック（オプション）
+      #   - allowlist.json   ← ホワイトリスト
+      #   - packetlimitconfig.json ← パケット制限
+      #   - server-icon.png  ← サーバーアイコン
+      - ./worlds/world1:/minecraft/world-data
 
       # 認証セッション（永続化 - 自動作成）
+      # IP/ポート変更時には再取得が必要なため別管理
       - ./sessions/world1:/minecraft/sessions
 
-      # 設定ファイル（永続化 - 自動作成）
-      - ./configs/world1:/minecraft/configs
-
-      # ログ（logrotate コンテナと共有）
+      # ログ（永続化 - 自動作成）
       - ./logs/world1:/minecraft/logs
 
     logging:
@@ -55,10 +60,16 @@ services:
   # 複数ワールド追加用テンプレート
   # ================================================
   # ワールドを追加する手順:
-  #   1. 以下をコピーしてワールド番号の部分を置換
-  #      （例: {N} → 2 で「ワールド2」が完成）
-  #   2. .envに SERVER_PORT_WORLD_2=19138 など環境変数を追加
-  #   3. docker-compose up -d minecraft-edu-world2 で起動
+  #   1. 以下をコピーしてワールド番号の部分を置換（例: {N} → 2）
+  #   2. .envに環境変数を追加: SERVER_PORT_WORLD_2=19138
+  #   3. コマンド実行: docker-compose up -d minecraft-edu-world2
+  #
+  # ワールドフォルダ構成:
+  #   worlds/world{N}/
+  #   ├── worlds/            ← ゲームワールドデータ
+  #   ├── behavior_packs/    ← 動作パック（オプション）
+  #   ├── resource_packs/    ← リソースパック（オプション）
+  #   └── *.json / *.png     ← 設定ファイル
   #
   # minecraft-edu-world{N}:
   #   build: .
@@ -86,9 +97,8 @@ services:
   #     TEXTUREPACK_REQUIRED: ${TEXTUREPACK_REQUIRED_WORLD_{N}:-${TEXTUREPACK_REQUIRED_COMMON:-true}}
   #     CONTENT_LOG_FILE_ENABLED: ${CONTENT_LOG_FILE_ENABLED_WORLD_{N}:-${CONTENT_LOG_FILE_ENABLED_COMMON:-false}}
   #   volumes:
-  #     - ./worlds/world{N}:/minecraft/worlds
+  #     - ./worlds/world{N}:/minecraft/world-data
   #     - ./sessions/world{N}:/minecraft/sessions
-  #     - ./configs/world{N}:/minecraft/configs
   #     - ./logs/world{N}:/minecraft/logs
   #   logging:
   #     driver: "local"
