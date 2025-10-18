@@ -36,14 +36,14 @@ services:
       #   - allowlist.json   ← ホワイトリスト
       #   - packetlimitconfig.json ← パケット制限
       #   - server-icon.png  ← サーバーアイコン
-      - ./worlds/world1:/minecraft/world-data
+      - ${VOLUMES_BASE_PATH:-./}worlds/world1:/minecraft/world-data
 
       # 認証セッション（永続化 - 自動作成）
       # IP/ポート変更時には再取得が必要なため別管理
-      - ./sessions/world1:/minecraft/sessions
+      - ${VOLUMES_BASE_PATH:-./}sessions/world1:/minecraft/sessions
 
       # ログ（永続化 - 自動作成）
-      - ./logs/world1:/minecraft/logs
+      - ${VOLUMES_BASE_PATH:-./}logs/world1:/minecraft/logs
 
     logging:
       driver: "local"
@@ -97,9 +97,9 @@ services:
   #     TEXTUREPACK_REQUIRED: ${TEXTUREPACK_REQUIRED_WORLD_{N}:-${TEXTUREPACK_REQUIRED_COMMON:-true}}
   #     CONTENT_LOG_FILE_ENABLED: ${CONTENT_LOG_FILE_ENABLED_WORLD_{N}:-${CONTENT_LOG_FILE_ENABLED_COMMON:-false}}
   #   volumes:
-  #     - ./worlds/world{N}:/minecraft/world-data
-  #     - ./sessions/world{N}:/minecraft/sessions
-  #     - ./logs/world{N}:/minecraft/logs
+  #     - ${VOLUMES_BASE_PATH:-./}worlds/world{N}:/minecraft/world-data
+  #     - ${VOLUMES_BASE_PATH:-./}sessions/world{N}:/minecraft/sessions
+  #     - ${VOLUMES_BASE_PATH:-./}logs/world{N}:/minecraft/logs
   #   logging:
   #     driver: "local"
   #     options:
