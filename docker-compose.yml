@@ -28,8 +28,8 @@ services:
       TEXTUREPACK_REQUIRED: ${TEXTUREPACK_REQUIRED_WORLD_1:-${TEXTUREPACK_REQUIRED_COMMON:-true}}
       CONTENT_LOG_FILE_ENABLED: ${CONTENT_LOG_FILE_ENABLED_WORLD_1:-${CONTENT_LOG_FILE_ENABLED_COMMON:-false}}
     volumes:
-      # ワールドデータ＋設定ファイル統合（永続化 - 自動作成）
-      # worlds/world1/ 配下に以下のファイル/フォルダが含まれます:
+      # ワールドデータ（worlds/world1/ 配下）
+      # worlds/world1に以下のファイル/フォルダが含まれます:
       #   - worlds/          ← ゲームワールドデータ
       #   - behavior_packs/  ← 動作パック（オプション）
       #   - resource_packs/  ← リソースパック（オプション）
@@ -38,11 +38,11 @@ services:
       #   - server-icon.png  ← サーバーアイコン
       - ${VOLUMES_BASE_PATH:-./}worlds/world1:/minecraft/world-data
 
-      # 認証セッション（永続化 - 自動作成）
+      # セッションデータ（sessions/world1/ 配下）
       # IP/ポート変更時には再取得が必要なため別管理
       - ${VOLUMES_BASE_PATH:-./}sessions/world1:/minecraft/sessions
 
-      # ログ（永続化 - 自動作成）
+      # ログファイル（logs/world1/ 配下）
       - ${VOLUMES_BASE_PATH:-./}logs/world1:/minecraft/logs
 
     logging:

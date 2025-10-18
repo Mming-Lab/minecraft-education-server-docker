@@ -18,6 +18,12 @@ Docker環境でMinecraft Education Edition Dedicated Serverを実行します。
 
 ```bash
 
+# ボリュームパス設定（任意設定）
+VOLUMES_BASE_PATH=./
+# ローカル開発環境: ./（相対パス）
+# NAS/リモートストレージ: /share/minecraft-edu/（絶対パス）
+# 末尾に / を付ける
+
 # 公開IPアドレス（必須設定）
 SERVER_PUBLIC_IP=192.168.1.100
 # 例1（LAN内のみ）: dockerホストのIPアドレス
@@ -37,11 +43,10 @@ SERVER_PORT_WORLD_1=19132
 ### 2. サーバー起動
 
 ```bash
-# ビルドと起動
-docker-compose build
-docker-compose up -d
+# サーバー起動
+docker-compose up -d minecraft-edu-world1
 
-# 初回認証（Device Codeを確認）
+# ログ確認（Device Codeを確認）
 docker-compose logs -f minecraft-edu-world1
 ```
 
@@ -164,8 +169,11 @@ GAMEMODE_WORLD_1=survival      # World1だけ個別設定
 ## コマンド
 
 ```bash
-# ログ確認
+# ログ確認（標準出力とファイルの両方に出力されます）
 docker-compose logs -f minecraft-edu-world1
+
+# ファイルから直接ログ確認
+tail -f logs/world1/server_*.log
 
 # 設定変更反映
 docker-compose restart
@@ -176,6 +184,10 @@ docker-compose down
 # 完全削除（ワールドデータも削除）
 docker-compose down -v
 ```
+
+**ログ出力**: サーバーログは以下の両方に記録されます：
+- **コンソール**: `docker-compose logs` で確認可能
+- **ファイル**: `logs/world{N}/server_YYYY-MM-DD.log` に記録
 
 ## トラブルシューティング
 
