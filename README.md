@@ -77,7 +77,6 @@ docker-compose logs -f minecraft-edu-world1
 │   │   ├── behavior_packs/ # 動作パック（オプション）
 │   │   ├── resource_packs/ # リソースパック（オプション）
 │   │   ├── allowlist.json  # ホワイトリスト設定
-│   │   ├── permissions.json # ScriptAPI使用許可設定
 │   │   ├── packetlimitconfig.json # パケット制限
 │   │   └── server-icon.png # サーバーアイコン
 │   └── world2/             # ワールド2のデータ（同じ構成）
