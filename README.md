@@ -14,10 +14,18 @@ Docker環境でMinecraft Education Edition Dedicated Serverを実行します。
 
 ### 1. 環境設定
 
-`.env`ファイルを編集（**必須**）：
+`.env`ファイルを作成（**必須**）：
 
 ```bash
+# .env.example をコピーして .env を作成
+cp .env.example .env
 
+# 作成した .env ファイルを編集（以下の項目は最低限設定が必要）
+```
+
+`.env`に以下を設定：
+
+```bash
 # ボリュームパス設定（任意設定）
 VOLUMES_BASE_PATH=./
 # ローカル開発環境: ./（相対パス）
@@ -29,7 +37,6 @@ SERVER_PUBLIC_IP=192.168.1.100
 # 例1（LAN内のみ）: dockerホストのIPアドレス
 # 例2（インターネット公開）: グローバルIPアドレスまたはドメイン名
 
-
 # ポート番号（必須設定）
 SERVER_PORT_WORLD_1=19132
 # 必ず設定してください。未設定の場合はエラーになります
@@ -39,6 +46,8 @@ SERVER_PORT_WORLD_1=19132
 #SERVER_PORTV6_WORLD_1=19133
 # IPv6を使用する場合のみ設定
 ```
+
+**詳細な設定項目は `.env.example` を参照してください。**
 
 ### 2. サーバー起動
 
@@ -72,7 +81,8 @@ docker-compose logs -f minecraft-edu-world1
 ├── Dockerfile              # Ubuntu 22.04ベースのコンテナイメージ定義
 ├── docker-compose.yml      # サービス定義（単一/複数ワールド対応）
 ├── entrypoint.sh           # 起動スクリプト（設定ファイル自動生成）
-├── .env                    # 環境変数設定（全設定を管理・要編集）
+├── .env.example            # 環境変数テンプレート（コピーして .env を作成）
+├── .env                    # 環境変数設定（全設定を管理・要編集・Git対象外）
 │
 ├── worlds/                 # ワールドデータ（全ワールドの親ディレクトリ）
 │   ├── world1/             # ワールド1のデータ（移植用にまとめて管理）
