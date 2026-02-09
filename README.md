@@ -79,7 +79,8 @@ docker-compose logs -f minecraft-edu-world1
 ```
 .
 │  # --- Git管理ファイル ---
-├── Dockerfile                # コンテナイメージ定義（マルチステージビルド）
+├── .github/workflows/        # GitHub Actions（イメージ自動ビルド＆push）
+├── Dockerfile                # コンテナイメージ定義
 ├── docker-compose.yml        # サービス定義（単一/複数ワールド対応）
 ├── entrypoint.sh             # 起動スクリプト（設定反映・グレースフルシャットダウン）
 ├── healthcheck.sh            # ヘルスチェック（サーバープロセス生存確認）
@@ -178,6 +179,33 @@ GAMEMODE_WORLD_1=survival      # World1だけ個別設定
 - **World1** → `survival`（個別設定が優先）
 - **World2以降** → `creative`（共通設定を使用）
 - **すべて未設定の場合** → docker-compose.ymlのデフォルト値を使用
+
+## Portainer でのデプロイ
+
+GitHub Actions でビルドされたイメージが [GitHub Container Registry](https://ghcr.io) に公開されるため、Portainer から直接デプロイできます。
+
+### 手順
+
+1. **Stacks** → **Add stack** → **Repository**
+2. **Repository URL**: `https://github.com/Mming-Lab/minecraft-education-server-docker`
+3. **Compose path**: `docker-compose.yml`
+4. **Environment variables** で以下を設定:
+   - `SERVER_PUBLIC_IP`: サーバーのIPアドレス
+   - `SERVER_PORT_WORLD_1`: ポート番号
+   - その他必要な設定（`.env.example` を参照）
+5. **Deploy the stack**
+
+### サーバーコマンドの実行（OP付与など）
+
+Portainer の **Console**（`/bin/bash`）から名前付きパイプ経由でコマンドを送れます：
+
+```bash
+# OP権限を付与
+echo "op プレイヤー名" > /tmp/server_input
+
+# OP権限を解除
+echo "deop プレイヤー名" > /tmp/server_input
+```
 
 ## コマンド
 

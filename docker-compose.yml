@@ -3,6 +3,7 @@ services:
   # ワールド1（デフォルト）
   # ================================================
   minecraft-edu-world1:
+    image: ghcr.io/mming-lab/minecraft-education-server-docker:latest
     build: .
     container_name: minecraft-edu-world1
     hostname: mcedu-world1
@@ -79,6 +80,7 @@ services:
   #   └── *.json / *.png     ← 設定ファイル
   #
   # minecraft-edu-world{N}:
+  #   image: ghcr.io/mming-lab/minecraft-education-server-docker:latest
   #   build: .
   #   container_name: minecraft-edu-world{N}
   #   hostname: mcedu-world{N}
