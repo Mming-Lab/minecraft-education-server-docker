@@ -2,12 +2,11 @@
 
 Docker環境でMinecraft Education Edition Dedicated Serverを実行します。
 
-> **注意**: ベータ版（v1.21.110）を使用しています。
+> **注意**: Dedicated Server はベータ版です。サーバーバイナリはコンテナ起動時に自動で最新版がダウンロードされます。
 
 ## システム要件
 
 - Docker & Docker Compose
-- 2コア以上のCPU、1GB以上のRAM
 - Azure AD グローバル管理者権限（初回認証とサーバー管理に必要）
 
 ## クイックスタート
@@ -26,25 +25,11 @@ cp .env.example .env
 `.env`に以下を設定：
 
 ```bash
-# ボリュームパス設定（任意設定）
-VOLUMES_BASE_PATH=./
-# ローカル開発環境: ./（相対パス）
-# NAS/リモートストレージ: /share/minecraft-edu/（絶対パス）
-# 末尾に / を付ける
-
 # 公開IPアドレス（必須設定）
 SERVER_PUBLIC_IP=192.168.1.100
-# 例1（LAN内のみ）: dockerホストのIPアドレス
-# 例2（インターネット公開）: グローバルIPアドレスまたはドメイン名
 
 # ポート番号（必須設定）
 SERVER_PORT_WORLD_1=19132
-# 必ず設定してください。未設定の場合はエラーになります
-# セキュリティ上、デフォルトポート19132以外を推奨（例: 19142）
-
-# IPv6ポート（任意設定）
-#SERVER_PORTV6_WORLD_1=19133
-# IPv6を使用する場合のみ設定
 ```
 
 **詳細な設定項目は `.env.example` を参照してください。**
@@ -111,31 +96,9 @@ docker-compose logs -f minecraft-edu-world1
 
 **移植**: `worlds/world{N}/` フォルダをまとめてコピーするだけで、ワールド全体を別環境に移植できます。
 
-## 設定管理
-
-### ワールドファイル構成
-
-ワールドに関連するすべての設定・データは `worlds/world{N}/` 配下に統合され、**ワールド単位で完結** しています：
-
-| ファイル | 役割 | 編集対象 |
-|---------|------|--------|
-| `worlds/` | ゲームワールドデータ | 不要（自動管理） |
-| `behavior_packs/` | カスタム動作パック | 必要に応じて追加 |
-| `resource_packs/` | カスタムリソースパック | 必要に応じて追加 |
-| `allowlist.json` | プレイヤーホワイトリスト | 必要に応じて編集 |
-| `packetlimitconfig.json` | パケット制限設定 | 通常は編集不要 |
-| `server-icon.png` | サーバーアイコン | 必要に応じて置換 |
-
-**メリット**: `worlds/world{N}/` フォルダ全体をコピーするだけで、別のサーバー/環境にワールド全体を移植できます。
-
-### 環境変数設定
-
-すべてのサーバー動作設定は`.env`ファイルで管理します。設定変更後は`docker-compose restart`で反映されます。
-「ワールド作成後に変更しても反映されるもの」と「一度生成したら反映されない（または部分的にしか反映されない）もの」があります。
-
-詳細な設定項目は`.env`ファイルを参照してください。
-
 ## 複数ワールド運用
+
+> **注意**: docker-compose.yml の編集が必要なため、Portainer（Repository モード）では利用できません。
 
 ### ワールド追加手順
 
@@ -164,25 +127,18 @@ docker-compose logs -f minecraft-edu-world1
 
 設定の優先順位：**個別設定 > 共通設定 > デフォルト値**
 
-#### 例: ゲームモードの設定
-
-**シナリオ**: World1はクリエイティブ、World2以降は全てサバイバル
-
 ```bash
-# .envファイル
+# .envファイルの例
 GAMEMODE_COMMON=creative       # 全ワールドのデフォルト
 GAMEMODE_WORLD_1=survival      # World1だけ個別設定
 # GAMEMODE_WORLD_2は未設定 → GAMEMODE_COMMONが使われる
 ```
 
-**結果**:
-- **World1** → `survival`（個別設定が優先）
-- **World2以降** → `creative`（共通設定を使用）
-- **すべて未設定の場合** → docker-compose.ymlのデフォルト値を使用
-
 ## Portainer でのデプロイ
 
 GitHub Actions でビルドされたイメージが [GitHub Container Registry](https://ghcr.io) に公開されるため、Portainer から直接デプロイできます。
+
+> **注意**: Portainer では1ワールドのみ対応です。複数ワールドが必要な場合は docker compose で運用してください。
 
 ### 手順
 
@@ -210,7 +166,7 @@ echo "deop プレイヤー名" > /tmp/server_input
 ## コマンド
 
 ```bash
-# ログ確認（標準出力とファイルの両方に出力されます）
+# ログ確認
 docker-compose logs -f minecraft-edu-world1
 
 # ファイルから直接ログ確認
@@ -221,18 +177,11 @@ docker-compose restart
 
 # 停止
 docker-compose down
-
-# コンテナとイメージの削除（ワールドデータは worlds/ に残ります）
-docker-compose down
 ```
-
-**ログ出力**: サーバーログは以下の両方に記録されます：
-- **コンソール**: `docker-compose logs` で確認可能
-- **ファイル**: `logs/world{N}/server_YYYY-MM-DD.log` に記録
 
 ## トラブルシューティング
 
-### 1. サーバーに接続できない
+### サーバーに接続できない
 
 #### 症状: サーバーIDを入力しても接続できない
 
