@@ -1,0 +1,54 @@
+# ================================================
+# ワールド{N}（追加ワールド用テンプレート）
+# ================================================
+# 使い方:
+#   1. このファイルをコピー: cp docker-compose.world.yml docker-compose.world2.yml
+#   2. {N} を実際の番号に置換（エディタの検索・置換で一括変更）
+#   3. .env にポート番号を設定: SERVER_PORT_WORLD_2=19134
+#   4. 起動: docker compose -f docker-compose.yml -f docker-compose.world2.yml up -d
+
+services:
+  minecraft-edu-world{N}:
+    image: ghcr.io/mming-lab/minecraft-education-server-docker:latest
+    build: .
+    container_name: minecraft-edu-world{N}
+    hostname: mcedu-world{N}
+    ports:
+      - "${SERVER_PORT_WORLD_{N}}:${SERVER_PORT_WORLD_{N}}/udp"
+    environment:
+      SERVER_PUBLIC_IP: ${SERVER_PUBLIC_IP}
+      SERVER_PORT: ${SERVER_PORT_WORLD_{N}}
+      LEVEL_NAME: ${LEVEL_NAME_WORLD_{N}:-${LEVEL_NAME_COMMON:-Bedrock level}}
+      GAMEMODE: ${GAMEMODE_WORLD_{N}:-${GAMEMODE_COMMON:-creative}}
+      DIFFICULTY: ${DIFFICULTY_WORLD_{N}:-${DIFFICULTY_COMMON:-easy}}
+      MAX_PLAYERS: ${MAX_PLAYERS_WORLD_{N}:-${MAX_PLAYERS_COMMON:-40}}
+      ALLOW_COMMANDS: ${ALLOW_COMMANDS_WORLD_{N}:-${ALLOW_COMMANDS_COMMON:-true}}
+      ALLOW_LIST: ${ALLOW_LIST_WORLD_{N}:-${ALLOW_LIST_COMMON:-false}}
+      CHAT_RESTRICTION: ${CHAT_RESTRICTION_WORLD_{N}:-${CHAT_RESTRICTION_COMMON:-None}}
+      VIEW_DISTANCE: ${VIEW_DISTANCE_WORLD_{N}:-${VIEW_DISTANCE_COMMON:-32}}
+      TICK_DISTANCE: ${TICK_DISTANCE_WORLD_{N}:-${TICK_DISTANCE_COMMON:-4}}
+      PLAYER_IDLE_TIMEOUT: ${PLAYER_IDLE_TIMEOUT_WORLD_{N}:-${PLAYER_IDLE_TIMEOUT_COMMON:-30}}
+      MAX_THREADS: ${MAX_THREADS_WORLD_{N}:-${MAX_THREADS_COMMON:-8}}
+      LEVEL_SEED: ${LEVEL_SEED_WORLD_{N}:-}
+      DEFAULT_PLAYER_PERMISSION_LEVEL: ${DEFAULT_PLAYER_PERMISSION_LEVEL_WORLD_{N}:-${DEFAULT_PLAYER_PERMISSION_LEVEL_COMMON:-member}}
+      TEXTUREPACK_REQUIRED: ${TEXTUREPACK_REQUIRED_WORLD_{N}:-${TEXTUREPACK_REQUIRED_COMMON:-true}}
+      CONTENT_LOG_FILE_ENABLED: ${CONTENT_LOG_FILE_ENABLED_WORLD_{N}:-${CONTENT_LOG_FILE_ENABLED_COMMON:-false}}
+      DISABLE_PLAYER_INTERACTION: ${DISABLE_PLAYER_INTERACTION_WORLD_{N}:-${DISABLE_PLAYER_INTERACTION_COMMON:-false}}
+      DISABLE_CUSTOM_SKINS: ${DISABLE_CUSTOM_SKINS_WORLD_{N}:-${DISABLE_CUSTOM_SKINS_COMMON:-false}}
+    volumes:
+      - ${VOLUMES_BASE_PATH:-./}worlds/world{N}:/minecraft/world-data
+      - ${VOLUMES_BASE_PATH:-./}sessions/world{N}:/minecraft/sessions
+      - ${VOLUMES_BASE_PATH:-./}logs/world{N}:/minecraft/logs
+    logging:
+      driver: "local"
+      options:
+        max-size: "50m"
+        max-file: "7"
+        compress: "true"
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2"
+    restart: unless-stopped
+    stop_grace_period: 30s

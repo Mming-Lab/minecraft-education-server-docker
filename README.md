@@ -66,7 +66,8 @@ docker-compose logs -f minecraft-edu-world1
 │  # --- Git管理ファイル ---
 ├── .github/workflows/        # GitHub Actions（イメージ自動ビルド＆push）
 ├── Dockerfile                # コンテナイメージ定義
-├── docker-compose.yml        # サービス定義（単一/複数ワールド対応）
+├── docker-compose.yml        # サービス定義（ワールド1）
+├── docker-compose.world.yml  # 追加ワールド用テンプレート
 ├── entrypoint.sh             # 起動スクリプト（設定反映・グレースフルシャットダウン）
 ├── healthcheck.sh            # ヘルスチェック（サーバープロセス生存確認）
 ├── property-definitions.json # サーバー設定の環境変数マッピング定義
@@ -98,29 +99,26 @@ docker-compose logs -f minecraft-edu-world1
 
 ## 複数ワールド運用
 
-> **注意**: docker-compose.yml の編集が必要なため、Portainer（Repository モード）では利用できません。
+> **注意**: Portainer（Repository モード）では利用できません。docker compose で運用してください。
 
 ### ワールド追加手順
 
-1. **docker-compose.ymlのテンプレートをコピー**
-   ```yaml
-   # ファイル末尾の「ワールド追加用テンプレート」をコピー
+1. **テンプレートをコピー**
+   ```bash
+   cp docker-compose.world.yml docker-compose.world2.yml
    ```
 
 2. **{N}を実際の番号に置換**
    - エディタの「検索・置換」機能で `{N}` → `2` に一括置換
-   - 例: `minecraft-edu-world{N}` → `minecraft-edu-world2`
 
 3. **.envにポート番号を設定（必須）**
    ```bash
-   # .env
-   SERVER_PORT_WORLD_2=19134  # 必須: World1とは異なるポート番号
-   #SERVER_PORTV6_WORLD_2=19135  # 任意: IPv6を使用する場合のみ
+   SERVER_PORT_WORLD_2=19134
    ```
 
-4. **コンテナを起動**
+4. **起動**
    ```bash
-   docker-compose up -d minecraft-edu-world2
+   docker compose -f docker-compose.yml -f docker-compose.world2.yml up -d
    ```
 
 ### 3段階フォールバック設定
@@ -151,32 +149,20 @@ GitHub Actions でビルドされたイメージが [GitHub Container Registry](
    - その他必要な設定（`.env.example` を参照）
 5. **Deploy the stack**
 
-### サーバーコマンドの実行（OP付与など）
-
-Portainer の **Console**（`/bin/bash`）から名前付きパイプ経由でコマンドを送れます：
-
-```bash
-# OP権限を付与
-echo "op プレイヤー名" > /tmp/server_input
-
-# OP権限を解除
-echo "deop プレイヤー名" > /tmp/server_input
-```
-
 ## コマンド
 
 ```bash
 # ログ確認
-docker-compose logs -f minecraft-edu-world1
+docker compose logs -f minecraft-edu-world1
 
 # ファイルから直接ログ確認
 tail -f logs/world1/server_*.log
 
-# 設定変更反映
-docker-compose restart
+# .env の設定変更を反映（コンテナを再作成）
+docker compose up -d
 
 # 停止
-docker-compose down
+docker compose down
 ```
 
 ## トラブルシューティング

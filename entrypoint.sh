@@ -21,8 +21,6 @@ shutdown_handler() {
         kill -TERM "$SERVER_PID"
         wait "$SERVER_PID" 2>/dev/null
     fi
-    # FIFOのクリーンアップ
-    rm -f /tmp/server_input
     exit 0
 }
 
@@ -181,22 +179,10 @@ if [ "$FIRST_BOOT" = true ]; then
 fi
 
 # ================================================
-# サーバー起動（stdin転送 + ログ出力 + シグナルハンドリング）
+# サーバー起動（ログ出力 + シグナルハンドリング）
 # ================================================
-# 名前付きパイプ（FIFO）でコンテナのstdinをサーバーに転送
-# → docker attach でコンソールコマンド（op 等）を入力可能にする
-SERVER_INPUT="/tmp/server_input"
-rm -f "$SERVER_INPUT"
-mkfifo "$SERVER_INPUT"
+./bedrock_server_edu 2>&1 | tee -a "$LOG_FILE" &
 
-# FIFOからの入力をサーバーのstdinに接続
-# 出力はteeでログファイルとコンソール両方に分岐
-tail -f "$SERVER_INPUT" | ./bedrock_server_edu > >(tee -a "$LOG_FILE") 2>&1 &
-
-# コンテナのstdinをFIFOに転送（バックグラウンド）
-cat > "$SERVER_INPUT" &
-
-# サーバーのPIDを取得（パイプ経由のため pgrep で確実に取得）
 sleep 1
 SERVER_PID=$(pgrep -f bedrock_server_edu)
 
