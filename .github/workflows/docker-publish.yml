@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
 
+env:
+  IMAGE_NAME: ghcr.io/mming-lab/minecraft-education-server-docker
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,5 +28,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
