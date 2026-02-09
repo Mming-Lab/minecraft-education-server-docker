@@ -3,7 +3,6 @@ services:
   # ワールド1（デフォルト）
   # ================================================
   minecraft-edu-world1:
-    image: ghcr.io/mming-lab/minecraft-education-server-docker:latest
     build: .
     container_name: minecraft-edu-world1
     hostname: mcedu-world1

@@ -64,7 +64,6 @@ docker-compose logs -f minecraft-edu-world1
 ```
 .
 │  # --- Git管理ファイル ---
-├── .github/workflows/        # GitHub Actions（イメージ自動ビルド＆push）
 ├── Dockerfile                # コンテナイメージ定義
 ├── docker-compose.yml        # サービス定義（ワールド1）
 ├── docker-compose.world.yml  # 追加ワールド用テンプレート
@@ -99,8 +98,6 @@ docker-compose logs -f minecraft-edu-world1
 
 ## 複数ワールド運用
 
-> **注意**: Portainer（Repository モード）では利用できません。docker compose で運用してください。
-
 ### ワールド追加手順
 
 1. **テンプレートをコピー**
@@ -131,23 +128,6 @@ GAMEMODE_COMMON=creative       # 全ワールドのデフォルト
 GAMEMODE_WORLD_1=survival      # World1だけ個別設定
 # GAMEMODE_WORLD_2は未設定 → GAMEMODE_COMMONが使われる
 ```
-
-## Portainer でのデプロイ
-
-GitHub Actions でビルドされたイメージが [GitHub Container Registry](https://ghcr.io) に公開されるため、Portainer から直接デプロイできます。
-
-> **注意**: Portainer では1ワールドのみ対応です。複数ワールドが必要な場合は docker compose で運用してください。
-
-### 手順
-
-1. **Stacks** → **Add stack** → **Repository**
-2. **Repository URL**: `https://github.com/Mming-Lab/minecraft-education-server-docker`
-3. **Compose path**: `docker-compose.yml`
-4. **Environment variables** で以下を設定:
-   - `SERVER_PUBLIC_IP`: サーバーのIPアドレス
-   - `SERVER_PORT_WORLD_1`: ポート番号
-   - その他必要な設定（`.env.example` を参照）
-5. **Deploy the stack**
 
 ## コマンド
 
@@ -207,7 +187,7 @@ docker compose down
    このIPアドレスとポート番号でクライアントから接続できるか確認
 2. **.envの設定確認**
    - `SERVER_PUBLIC_IP`: DockerホストのIPアドレス（LAN内ならプライベートIP、インターネット経由ならパブリックIP/ドメイン）
-   - `SERVER_PORT_WORLD_1`と`SERVER_PORTV6_WORLD_1`: ポート番号が設定されているか
+   - `SERVER_PORT_WORLD_1`: ポート番号が設定されているか
 3. **ファイアウォール確認**: 該当ポートのUDPが開放されているか
 4. **ルーター/NAT確認**（インターネット経由の場合）: ポートフォワーディングが設定されているか
 
