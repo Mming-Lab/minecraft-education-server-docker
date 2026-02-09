@@ -21,10 +21,54 @@ shutdown_handler() {
         kill -TERM "$SERVER_PID"
         wait "$SERVER_PID" 2>/dev/null
     fi
+    # FIFOのクリーンアップ
+    rm -f /tmp/server_input
     exit 0
 }
 
 trap 'shutdown_handler' SIGTERM SIGINT
+
+# ================================================
+# サーバーバイナリの自動更新
+# ================================================
+SERVER_BIN="/minecraft/bedrock_server_edu"
+SERVER_ZIP="/tmp/server.zip"
+VERSION_FILE="/minecraft/.server_version"
+DOWNLOAD_URL="https://aka.ms/downloadmee-linuxServerBeta"
+
+# リモートのファイル情報を取得（ETag or Last-Modified でバージョン判定）
+REMOTE_HEADERS=$(wget --spider -S "$DOWNLOAD_URL" 2>&1 || true)
+REMOTE_ETAG=$(echo "$REMOTE_HEADERS" | grep -i "ETag:" | tail -1 | sed 's/.*ETag: *//i' | tr -d '\r')
+REMOTE_MODIFIED=$(echo "$REMOTE_HEADERS" | grep -i "Last-Modified:" | tail -1 | sed 's/.*Last-Modified: *//i' | tr -d '\r')
+REMOTE_VERSION="${REMOTE_ETAG:-$REMOTE_MODIFIED}"
+
+# ローカルのバージョン情報と比較
+LOCAL_VERSION=""
+if [ -f "$VERSION_FILE" ]; then
+    LOCAL_VERSION=$(cat "$VERSION_FILE")
+fi
+
+NEED_UPDATE=false
+if [ ! -f "$SERVER_BIN" ]; then
+    echo "サーバーバイナリが見つかりません。ダウンロードします..."
+    NEED_UPDATE=true
+elif [ -n "$REMOTE_VERSION" ] && [ "$REMOTE_VERSION" != "$LOCAL_VERSION" ]; then
+    echo "サーバーの新しいバージョンが利用可能です。更新します..."
+    NEED_UPDATE=true
+else
+    echo "サーバーは最新です。"
+fi
+
+if [ "$NEED_UPDATE" = true ]; then
+    wget -q --show-progress -O "$SERVER_ZIP" "$DOWNLOAD_URL"
+    unzip -o "$SERVER_ZIP" -d /minecraft
+    rm -f "$SERVER_ZIP"
+    chmod +x "$SERVER_BIN"
+    if [ -n "$REMOTE_VERSION" ]; then
+        echo "$REMOTE_VERSION" > "$VERSION_FILE"
+    fi
+    echo "サーバーの更新が完了しました。"
+fi
 
 # ================================================
 # 設定値
@@ -137,13 +181,24 @@ if [ "$FIRST_BOOT" = true ]; then
 fi
 
 # ================================================
-# サーバー起動（stdout/stderr をログファイルとコンソール両方に出力）
-# バックグラウンドで起動し、シグナルハンドリングを有効化
+# サーバー起動（stdin転送 + ログ出力 + シグナルハンドリング）
 # ================================================
-# プロセス置換でサーバー本体のPIDを正しく取得
-# （パイプだと $! が tee のPIDになり、シグナルがサーバーに届かない）
-./bedrock_server_edu > >(tee -a "$LOG_FILE") 2>&1 &
-SERVER_PID=$!
+# 名前付きパイプ（FIFO）でコンテナのstdinをサーバーに転送
+# → docker attach でコンソールコマンド（op 等）を入力可能にする
+SERVER_INPUT="/tmp/server_input"
+rm -f "$SERVER_INPUT"
+mkfifo "$SERVER_INPUT"
+
+# FIFOからの入力をサーバーのstdinに接続
+# 出力はteeでログファイルとコンソール両方に分岐
+tail -f "$SERVER_INPUT" | ./bedrock_server_edu > >(tee -a "$LOG_FILE") 2>&1 &
+
+# コンテナのstdinをFIFOに転送（バックグラウンド）
+cat > "$SERVER_INPUT" &
+
+# サーバーのPIDを取得（パイプ経由のため pgrep で確実に取得）
+sleep 1
+SERVER_PID=$(pgrep -f bedrock_server_edu)
 
 # サーバープロセスの終了を待機
 wait "$SERVER_PID"
