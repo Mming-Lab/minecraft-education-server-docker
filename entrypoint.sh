@@ -2,6 +2,31 @@
 set -e
 
 # ================================================
+# グレースフルシャットダウン
+# ================================================
+SERVER_PID=""
+
+shutdown_handler() {
+    local msg="【$(date '+%Y-%m-%d %H:%M:%S')】シャットダウン信号を受信しました"
+    echo ""
+    echo "=========================================="
+    echo "$msg"
+    echo "=========================================="
+    if [ -n "$LOG_FILE" ]; then
+        echo "==========================================" >> "$LOG_FILE"
+        echo "$msg" >> "$LOG_FILE"
+        echo "==========================================" >> "$LOG_FILE"
+    fi
+    if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
+        kill -TERM "$SERVER_PID"
+        wait "$SERVER_PID" 2>/dev/null
+    fi
+    exit 0
+}
+
+trap 'shutdown_handler' SIGTERM SIGINT
+
+# ================================================
 # 設定値
 # ================================================
 WORLD_DATA_DIR="/minecraft/world-data"
@@ -58,97 +83,18 @@ ln -sf "${WORLD_DATA_DIR}/packetlimitconfig.json" packetlimitconfig.json
 ln -sf "${WORLD_DATA_DIR}/worlds" worlds
 
 
+# ================================================
 # 環境変数からserver.propertiesの値を動的に更新
-if [ -f "server.properties" ]; then
-    # server-public-ip
-    if [ -n "$SERVER_PUBLIC_IP" ]; then
-        sed -i "s|^server-public-ip=.*|server-public-ip=${SERVER_PUBLIC_IP}|" server.properties
-    fi
-
-    # server-port
-    if [ -n "$SERVER_PORT" ]; then
-        sed -i "s|^server-port=.*|server-port=${SERVER_PORT}|" server.properties
-    fi
-
-    # server-portv6
-    if [ -n "$SERVER_PORTV6" ]; then
-        sed -i "s|^server-portv6=.*|server-portv6=${SERVER_PORTV6}|" server.properties
-    fi
-
-    # level-name
-    if [ -n "$LEVEL_NAME" ]; then
-        sed -i "s|^level-name=.*|level-name=${LEVEL_NAME}|" server.properties
-    fi
-
-    # gamemode
-    if [ -n "$GAMEMODE" ]; then
-        sed -i "s|^gamemode=.*|gamemode=${GAMEMODE}|" server.properties
-    fi
-
-    # difficulty
-    if [ -n "$DIFFICULTY" ]; then
-        sed -i "s|^difficulty=.*|difficulty=${DIFFICULTY}|" server.properties
-    fi
-
-    # allow-cheats
-    if [ -n "$ALLOW_CHEATS" ]; then
-        sed -i "s|^allow-cheats=.*|allow-cheats=${ALLOW_CHEATS}|" server.properties
-    fi
-
-    # chat-restriction
-    if [ -n "$CHAT_RESTRICTION" ]; then
-        sed -i "s|^chat-restriction=.*|chat-restriction=${CHAT_RESTRICTION}|" server.properties
-    fi
-
-    # max-players
-    if [ -n "$MAX_PLAYERS" ]; then
-        sed -i "s|^max-players=.*|max-players=${MAX_PLAYERS}|" server.properties
-    fi
-
-    # allow-list
-    if [ -n "$ALLOW_LIST" ]; then
-        sed -i "s|^allow-list=.*|allow-list=${ALLOW_LIST}|" server.properties
-    fi
-
-    # view-distance
-    if [ -n "$VIEW_DISTANCE" ]; then
-        sed -i "s|^view-distance=.*|view-distance=${VIEW_DISTANCE}|" server.properties
-    fi
-
-    # tick-distance
-    if [ -n "$TICK_DISTANCE" ]; then
-        sed -i "s|^tick-distance=.*|tick-distance=${TICK_DISTANCE}|" server.properties
-    fi
-
-    # player-idle-timeout
-    if [ -n "$PLAYER_IDLE_TIMEOUT" ]; then
-        sed -i "s|^player-idle-timeout=.*|player-idle-timeout=${PLAYER_IDLE_TIMEOUT}|" server.properties
-    fi
-
-    # max-threads
-    if [ -n "$MAX_THREADS" ]; then
-        sed -i "s|^max-threads=.*|max-threads=${MAX_THREADS}|" server.properties
-    fi
-
-    # level-seed
-    if [ -n "$LEVEL_SEED" ]; then
-        sed -i "s|^level-seed=.*|level-seed=${LEVEL_SEED}|" server.properties
-    fi
-
-    # default-player-permission-level
-    if [ -n "$DEFAULT_PLAYER_PERMISSION_LEVEL" ]; then
-        sed -i "s|^default-player-permission-level=.*|default-player-permission-level=${DEFAULT_PLAYER_PERMISSION_LEVEL}|" server.properties
-    fi
-
-    # texturepack-required
-    if [ -n "$TEXTUREPACK_REQUIRED" ]; then
-        sed -i "s|^texturepack-required=.*|texturepack-required=${TEXTUREPACK_REQUIRED}|" server.properties
-    fi
-
-    # content-log-file-enabled
-    if [ -n "$CONTENT_LOG_FILE_ENABLED" ]; then
-        sed -i "s|^content-log-file-enabled=.*|content-log-file-enabled=${CONTENT_LOG_FILE_ENABLED}|" server.properties
-    fi
+# property-definitions.json に基づいてループ処理
+# ================================================
+PROP_DEFS="/minecraft/property-definitions.json"
+if [ -f "server.properties" ] && [ -f "$PROP_DEFS" ]; then
+    jq -r 'to_entries[] | "\(.key) \(.value.env)"' "$PROP_DEFS" | while read -r prop_name env_name; do
+        env_value="${!env_name}"
+        if [ -n "$env_value" ]; then
+            sed -i "s|^${prop_name}=.*|${prop_name}=${env_value}|" server.properties
+        fi
+    done
 fi
 
 # ================================================
@@ -192,5 +138,12 @@ fi
 
 # ================================================
 # サーバー起動（stdout/stderr をログファイルとコンソール両方に出力）
+# バックグラウンドで起動し、シグナルハンドリングを有効化
 # ================================================
-exec ./bedrock_server_edu | tee -a "$LOG_FILE"
+# プロセス置換でサーバー本体のPIDを正しく取得
+# （パイプだと $! が tee のPIDになり、シグナルがサーバーに届かない）
+./bedrock_server_edu > >(tee -a "$LOG_FILE") 2>&1 &
+SERVER_PID=$!
+
+# サーバープロセスの終了を待機
+wait "$SERVER_PID"

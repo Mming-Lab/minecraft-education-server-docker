@@ -78,34 +78,37 @@ docker-compose logs -f minecraft-edu-world1
 
 ```
 .
-├── Dockerfile              # Ubuntu 22.04ベースのコンテナイメージ定義
-├── docker-compose.yml      # サービス定義（単一/複数ワールド対応）
-├── entrypoint.sh           # 起動スクリプト（設定ファイル自動生成）
-├── .env.example            # 環境変数テンプレート（コピーして .env を作成）
-├── .env                    # 環境変数設定（全設定を管理・要編集・Git対象外）
+│  # --- Git管理ファイル ---
+├── Dockerfile                # コンテナイメージ定義（マルチステージビルド）
+├── docker-compose.yml        # サービス定義（単一/複数ワールド対応）
+├── entrypoint.sh             # 起動スクリプト（設定反映・グレースフルシャットダウン）
+├── healthcheck.sh            # ヘルスチェック（サーバープロセス生存確認）
+├── property-definitions.json # サーバー設定の環境変数マッピング定義
+├── .env.example              # 環境変数テンプレート（コピーして .env を作成）
+├── .dockerignore             # Dockerビルドコンテキスト除外設定
+├── LICENSE                   # Apache License 2.0
 │
-├── worlds/                 # ワールドデータ（全ワールドの親ディレクトリ）
-│   ├── world1/             # ワールド1のデータ（移植用にまとめて管理）
-│   │   ├── worlds/         # ゲームワールドデータ
-│   │   │   ├── Bedrock level/
-│   │   │   └── Education level/
-│   │   ├── behavior_packs/ # 動作パック（オプション）
-│   │   ├── resource_packs/ # リソースパック（オプション）
-│   │   ├── allowlist.json  # ホワイトリスト設定
-│   │   ├── packetlimitconfig.json # パケット制限
-│   │   └── server-icon.png # サーバーアイコン
-│   └── world2/             # ワールド2のデータ（同じ構成）
+│  # --- 実行時に作成されるファイル（Git対象外） ---
+├── .env                      # 環境変数設定（.env.example からコピーして編集）
 │
-├── sessions/               # Azure AD認証セッション（IP/ポート変更時に再取得）
-│   ├── world1/
-│   └── world2/
+├── worlds/                   # ワールドデータ
+│   └── world{N}/             # 各ワールドのデータ（フォルダごと移植可能）
+│       ├── worlds/           # ゲームワールドデータ（自動生成）
+│       ├── behavior_packs/   # 動作パック（オプション）
+│       ├── resource_packs/   # リソースパック（オプション）
+│       ├── allowlist.json    # ホワイトリスト（初回起動時に自動生成）
+│       ├── packetlimitconfig.json # パケット制限（初回起動時に自動生成）
+│       └── server-icon.png   # サーバーアイコン（手動配置）
 │
-├── logs/                   # サーバーログ（自動ローテーション）
-│   ├── world1/
-│   └── world2/
+├── sessions/                 # Azure AD認証セッション
+│   └── world{N}/             # IP/ポート変更時に再認証が必要
+│
+└── logs/                     # サーバーログ（日次ローテーション）
+    └── world{N}/
+        └── server_YYYY-MM-DD.log
 ```
 
-**重要**: `worlds/world{N}/` 配下のファイル・フォルダをまとめてコピーすることで、ワールド全体を別環境に完全に移植できます。
+**移植**: `worlds/world{N}/` フォルダをまとめてコピーするだけで、ワールド全体を別環境に移植できます。
 
 ## 設定管理
 
@@ -191,8 +194,8 @@ docker-compose restart
 # 停止
 docker-compose down
 
-# 完全削除（ワールドデータも削除）
-docker-compose down -v
+# コンテナとイメージの削除（ワールドデータは worlds/ に残ります）
+docker-compose down
 ```
 
 **ログ出力**: サーバーログは以下の両方に記録されます：

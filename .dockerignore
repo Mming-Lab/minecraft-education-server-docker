@@ -1,0 +1,25 @@
+# ランタイムデータ（ボリュームでマウントするため不要）
+worlds/
+sessions/
+logs/
+
+# 環境設定ファイル
+.env
+.env.*
+!.env.example
+
+# バージョン管理
+.git/
+.gitignore
+
+# ドキュメント・開発ツール
+docs/
+*.md
+*.ipynb
+LICENSE
+.claude/
+.vscode/
+.github/
+
+# アプリケーション
+mcedu_app/

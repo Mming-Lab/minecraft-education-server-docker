@@ -52,7 +52,14 @@ services:
         max-file: "7"       # 7世代保持（超過分は自動削除）
         compress: "true"    # 自動圧縮
 
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2"
+
     restart: unless-stopped
+    stop_grace_period: 30s   # シャットダウン猶予（ワールド保存完了を待つ）
     stdin_open: true
     tty: true
 
@@ -106,6 +113,12 @@ services:
   #       max-size: "100m"
   #       max-file: "7"
   #       compress: "true"
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 2g
+  #         cpus: "2"
   #   restart: unless-stopped
+  #   stop_grace_period: 30s
   #   stdin_open: true
   #   tty: true
