@@ -74,6 +74,11 @@ docker-compose logs -f minecraft-edu-world1
 ├── .dockerignore             # Dockerビルドコンテキスト除外設定
 ├── LICENSE                   # Apache License 2.0
 │
+├── docker-compose.loggifly.yml  # LoggiFly（ログ監視+通知）Override
+├── loggifly/
+│   ├── config.yaml.example      # LoggiFly 設定テンプレート
+│   └── config.yaml              # LoggiFly 設定（Git対象外・トークン含む）
+│
 │  # --- 実行時に作成されるファイル（Git対象外） ---
 ├── .env                      # 環境変数設定（.env.example からコピーして編集）
 │
@@ -127,6 +132,43 @@ docker-compose logs -f minecraft-edu-world1
 GAMEMODE_COMMON=creative       # 全ワールドのデフォルト
 GAMEMODE_WORLD_1=survival      # World1だけ個別設定
 # GAMEMODE_WORLD_2は未設定 → GAMEMODE_COMMONが使われる
+```
+
+## ログ監視・通知（LoggiFly）
+
+[LoggiFly](https://github.com/clemcer/LoggiFly)でサーバーログを監視し、プレイヤーの参加/退出やサーバーイベントを通知できます。
+
+### セットアップ
+
+1. **設定ファイルを作成**
+   ```bash
+   cp loggifly/config.yaml.example loggifly/config.yaml
+   ```
+
+2. **`loggifly/config.yaml` に通知先を設定**
+   - ntfy: `notifications.ntfy` セクションにトピック名を設定
+   - LINE / Discord / Email 等: `apprise_url` に [Apprise URL](https://github.com/caronc/apprise/wiki) を設定
+
+3. **起動**
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.loggifly.yml up -d
+   ```
+
+### コンテナ別の通知先切り替え
+
+コンテナ単位で `ntfy_topic` や `apprise_url` を指定すると、ワールドごとに通知先を変えられます。
+空文字列 `""` を指定するとそのチャネルを無効化できます。
+
+```yaml
+# 例: world1 は LINE のみ、world2 は ntfy のみ
+containers:
+  minecraft-edu-world1:
+    ntfy_topic: ""                          # ntfy を無効化
+    apprise_url: "line://TOKEN/USER_ID_A"   # LINE に通知
+    keywords: ...
+  minecraft-edu-world2:
+    apprise_url: ""                         # apprise を無効化（ntfy のみ）
+    keywords: ...
 ```
 
 ## コマンド

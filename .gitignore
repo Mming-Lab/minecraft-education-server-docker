@@ -14,6 +14,14 @@ logs/
 # VSCode設定（各環境固有）
 .vscode/
 
+# LoggiFly通知設定（トークン等の秘密情報を含む）
+# config.yaml.example をコピーして config.yaml を作成すること
+loggifly/config.yaml
+
+# 追加ワールドの Override ファイル（テンプレートからコピーして作成）
+# docker-compose.world.yml（テンプレート）は Git 管理対象
+docker-compose.world[0-9]*.yml
+
 # claude関連
 CLAUDE.md
 .claude

@@ -1,0 +1,84 @@
+# ================================================
+# LoggiFly 設定ファイル（MCEE サーバー通知用）
+# ================================================
+# MCEEサーバーのログを監視し、プレイヤーの参加/退出やサーバーイベントを通知する。
+#
+# セットアップ:
+#   1. このファイルをコピー: cp config.yaml.example config.yaml
+#   2. notifications セクションに通知先を設定
+#   3. docker compose -f docker-compose.yml -f docker-compose.loggifly.yml up -d
+#
+# 参考:
+#   - LoggiFly ドキュメント: https://clemcer.github.io/loggifly/
+#   - Apprise 対応サービス一覧: https://github.com/caronc/apprise/wiki
+
+# ------------------------------------------------
+# コンテナ別のキーワード/正規表現設定
+# ------------------------------------------------
+# 複数ワールドがある場合は、コンテナ名ごとにセクションを追加する。
+# コンテナ名は docker-compose.yml の container_name と一致させること。
+#
+# 通知先の優先順位: キーワード単位 > コンテナ単位 > グローバル（notifications）
+# コンテナ単位で ntfy_topic や apprise_url を指定すると、
+# そのコンテナの通知だけ別の送信先に切り替えられる。
+
+containers:
+  minecraft-edu-world1:
+    keywords:
+      # プレイヤー参加（Player Spawned で検知）
+      # ログ例: [2026-02-09 22:20:05:223 INFO] Player Spawned: wakoy xuid: , pfid:
+      # 注意: "Player connected" ではなく "Player Spawned" で検知する
+      #       （ワールドに実際に出現したタイミングで通知するため）
+      - regex: 'Player Spawned: (?P<player>.+?) xuid:'
+        title_template: 'MCEE - プレイヤー参加'
+        message_template: '{player} がワールドに参加しました'
+
+      # プレイヤー退出
+      # ログ例: [2026-02-09 22:20:12:472 INFO] Player disconnected: wakoy, xuid: , pfid:
+      - regex: 'Player disconnected: (?P<player>[^,]+),'
+        title_template: 'MCEE - プレイヤー退出'
+        message_template: '{player} がワールドから退出しました'
+
+      # サーバー起動完了
+      # ログ例: [2026-02-09 14:26:43:240 INFO] Server started.
+      - Server started.
+
+      # サーバー停止
+      # ログ例: [2026-02-09 14:30:00:123 INFO] Stopping server
+      - Stopping server
+
+  # --- ワールド2以降を使う場合はコメントを外して追加 ---
+  # minecraft-edu-world2:
+  #   # コンテナ単位で通知先を切り替える場合（省略時は notifications セクションの設定を使用）
+  #   ntfy_topic: world2-alerts
+  #   # apprise_url: "discord://WEBHOOK_ID/WEBHOOK_TOKEN"
+  #   keywords:
+  #     - regex: 'Player Spawned: (?P<player>.+?) xuid:'
+  #       title_template: 'MCEE World2 - プレイヤー参加'
+  #       message_template: '{player} がワールド2に参加しました'
+  #     - regex: 'Player disconnected: (?P<player>[^,]+),'
+  #       title_template: 'MCEE World2 - プレイヤー退出'
+  #       message_template: '{player} がワールド2から退出しました'
+  #     - Server started.
+  #     - Stopping server
+
+# ------------------------------------------------
+# 通知先の設定
+# ------------------------------------------------
+# ntfy: LoggiFly が直接送信（Apprise 不要）
+# LINE, Email, Discord: Apprise URL 形式で指定
+#   詳細: https://github.com/caronc/apprise/wiki
+
+notifications:
+  # --- ntfy（直接送信）---
+  ntfy:
+    url: https://ntfy.sh
+    topic: your-topic-name
+
+  # --- LINE, Email, Discord 等は Apprise 経由 ---
+  # 複数サービスはカンマ区切りで指定可能
+  # apprise:
+  #   url: >-
+  #     line://YOUR_LINE_CHANNEL_ACCESS_TOKEN/YOUR_LINE_USER_ID,
+  #     mailtos://user:pass@domain:587?smtp=smtp.example.com&from=noreply@example.com&to=recipient@example.com,
+  #     discord://WEBHOOK_ID/WEBHOOK_TOKEN

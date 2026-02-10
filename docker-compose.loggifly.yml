@@ -1,0 +1,23 @@
+# ================================================
+# LoggiFly（ログ監視 + 通知）
+# ================================================
+# 使い方:
+#   1. loggifly/config.yaml に通知先を設定
+#   2. 起動: docker compose -f docker-compose.yml -f docker-compose.loggifly.yml up -d
+#   3. 複数ワールドの場合: docker compose -f docker-compose.yml -f docker-compose.world2.yml -f docker-compose.loggifly.yml up -d
+#
+# LoggiFly はコンテナのログをキーワード/正規表現で監視し、
+# ntfy や Apprise 経由で各種サービス（Discord, LINE, Email 等）に通知します。
+# 参考: https://github.com/clemcer/LoggiFly
+
+services:
+  loggifly:
+    image: ghcr.io/clemcer/loggifly:v1
+    container_name: loggifly
+    read_only: true
+    environment:
+      TZ: Asia/Tokyo
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./loggifly:/config
+    restart: unless-stopped
