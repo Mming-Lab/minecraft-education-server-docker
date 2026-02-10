@@ -38,10 +38,10 @@ SERVER_PORT_WORLD_1=19132
 
 ```bash
 # サーバー起動
-docker-compose up -d minecraft-edu-world1
+docker compose up -d minecraft-edu-world1
 
 # ログ確認（Device Codeを確認）
-docker-compose logs -f minecraft-edu-world1
+docker compose logs -f minecraft-edu-world1
 ```
 
 ### 3. サーバー有効化
@@ -171,22 +171,6 @@ containers:
     keywords: ...
 ```
 
-## コマンド
-
-```bash
-# ログ確認
-docker compose logs -f minecraft-edu-world1
-
-# ファイルから直接ログ確認
-tail -f logs/world1/server_*.log
-
-# .env の設定変更を反映（コンテナを再作成）
-docker compose up -d
-
-# 停止
-docker compose down
-```
-
 ## トラブルシューティング
 
 ### サーバーに接続できない
@@ -223,7 +207,7 @@ docker compose down
 **対処法**:
 1. **サーバーログで接続情報を確認**
    ```bash
-   docker-compose logs minecraft-edu-world1 | grep "port:"
+   docker compose logs minecraft-edu-world1 | grep "port:"
    # 出力例: IPv4 supported, port: 192.168.1.100:19132
    ```
    このIPアドレスとポート番号でクライアントから接続できるか確認
