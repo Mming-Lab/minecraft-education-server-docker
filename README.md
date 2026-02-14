@@ -230,6 +230,6 @@ containers:
 
 ## ライセンス
 
-リポジトリのコード: Apache License 2.0
+リポジトリのコード: [PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/)（非商用利用のみ許可）
 
 Minecraft Education Edition サーバーバイナリ: [Microsoft Software License Terms](https://aka.ms/MinecraftEULA)
