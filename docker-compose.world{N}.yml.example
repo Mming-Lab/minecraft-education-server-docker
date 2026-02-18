@@ -2,7 +2,7 @@
 # ワールド{N}（追加ワールド用テンプレート）
 # ================================================
 # 使い方:
-#   1. このファイルをコピー: cp docker-compose.world.yml docker-compose.world2.yml
+#   1. このファイルをコピー: cp docker-compose.world{N}.yml.example docker-compose.world2.yml
 #   2. {N} を実際の番号に置換（エディタの検索・置換で一括変更）
 #   3. .env にポート番号を設定: SERVER_PORT_WORLD_2=19134
 #   4. 起動: docker compose -f docker-compose.yml -f docker-compose.world2.yml up -d

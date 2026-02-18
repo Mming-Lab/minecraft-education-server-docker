@@ -66,7 +66,7 @@ docker compose logs -f minecraft-edu-world1
 │  # --- Git管理ファイル ---
 ├── Dockerfile                # コンテナイメージ定義
 ├── docker-compose.yml        # サービス定義（ワールド1）
-├── docker-compose.world.yml  # 追加ワールド用テンプレート
+├── docker-compose.world{N}.yml.example  # 追加ワールド用テンプレート
 ├── entrypoint.sh             # 起動スクリプト（設定反映・グレースフルシャットダウン）
 ├── healthcheck.sh            # ヘルスチェック（サーバープロセス生存確認）
 ├── property-definitions.json # サーバー設定の環境変数マッピング定義
@@ -107,7 +107,7 @@ docker compose logs -f minecraft-edu-world1
 
 1. **テンプレートをコピー**
    ```bash
-   cp docker-compose.world.yml docker-compose.world2.yml
+   cp docker-compose.world{N}.yml.example docker-compose.world2.yml
    ```
 
 2. **{N}を実際の番号に置換**
