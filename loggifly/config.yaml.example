@@ -5,68 +5,165 @@
 #
 # セットアップ:
 #   1. このファイルをコピー: cp config.yaml.example config.yaml
-#   2. notifications セクションに通知先を設定
-#   3. docker compose -f docker-compose.yml -f docker-compose.loggifly.yml up -d
+#   2. 下記のパターンから1つ選んでコメントアウトを外す
+#   3. notifications セクションに通知先を設定
+#   4. docker compose -f docker-compose.yml -f docker-compose.loggifly.yml up -d
 #
 # 参考:
 #   - LoggiFly ドキュメント: https://clemcer.github.io/loggifly/
 #   - Apprise 対応サービス一覧: https://github.com/caronc/apprise/wiki
-
-# ------------------------------------------------
-# コンテナ別のキーワード/正規表現設定
-# ------------------------------------------------
-# 複数ワールドがある場合は、コンテナ名ごとにセクションを追加する。
-# コンテナ名は docker-compose.yml の container_name と一致させること。
 #
-# 通知先の優先順位: キーワード単位 > コンテナ単位 > グローバル（notifications）
-# コンテナ単位で ntfy_topic や apprise_url を指定すると、
-# そのコンテナの通知だけ別の送信先に切り替えられる。
+# ================================================
+# 設定パターン一覧
+# ================================================
+#   パターンA: 1ワールド・全通知先統一（シンプル）         ← デフォルト（コメントなし）
+#   パターンB: イベントで通知先を分ける                    ← 要コメント解除
+#              player join/leave → LINE+ntfy 両方
+#              server start/stop → ntfy のみ
+#   パターンC: ワールドごとに通知先を変える（複数ワールド） ← 要コメント解除
+#              world1 → LINE のみ / world2 → ntfy のみ
+#
+# 共通の注意事項:
+#   - title_template は ASCII のみ有効（ntfy の HTTP ヘッダー制約）
+#   - message_template は日本語可
+#   - コンテナ名は docker-compose.yml の container_name と一致させること
+#   - 通知先の優先順位: キーワード単位 > コンテナ単位 > settings > グローバル（notifications）
+#   - 空文字列 "" でそのチャネルを無効化できる
+#
+# ================================================
+# ログ例（参考）
+# ================================================
+#   [INFO] Player Spawned: wakoy xuid: , pfid:          ← プレイヤー参加
+#   [INFO] Player disconnected: wakoy, xuid: , pfid:   ← プレイヤー退出
+#   [INFO] Server started.                              ← サーバー起動完了
+#   [INFO] Stopping server                              ← サーバー停止
+#
+# 注意: "Player connected" ではなく "Player Spawned" で参加を検知する
+#       （ワールドに実際に出現したタイミングで通知するため）
+
+
+# ================================================================
+# パターンA: 1ワールド・全通知先統一（シンプル）
+# ================================================================
+# 全イベントを同じ通知先（notifications セクションの設定）に送る。
+# 通知先を分けたい場合はパターンB/Cを使用。
 
 containers:
   minecraft-edu-world1:
     keywords:
-      # プレイヤー参加（Player Spawned で検知）
-      # ログ例: [2026-02-09 22:20:05:223 INFO] Player Spawned: wakoy xuid: , pfid:
-      # 注意: "Player connected" ではなく "Player Spawned" で検知する
-      #       （ワールドに実際に出現したタイミングで通知するため）
       - regex: 'Player Spawned: (?P<player>.+?) xuid:'
-        title_template: 'MCEE - プレイヤー参加'
+        title_template: '{container_name} - Player Joined'
         message_template: '{player} がワールドに参加しました'
 
-      # プレイヤー退出
-      # ログ例: [2026-02-09 22:20:12:472 INFO] Player disconnected: wakoy, xuid: , pfid:
       - regex: 'Player disconnected: (?P<player>[^,]+),'
-        title_template: 'MCEE - プレイヤー退出'
+        title_template: '{container_name} - Player Left'
         message_template: '{player} がワールドから退出しました'
 
-      # サーバー起動完了
-      # ログ例: [2026-02-09 14:26:43:240 INFO] Server started.
-      - Server started.
+      - keyword: Server started.
+        title_template: '{container_name} - Server Started'
 
-      # サーバー停止
-      # ログ例: [2026-02-09 14:30:00:123 INFO] Stopping server
-      - Stopping server
+      - keyword: Stopping server
+        title_template: '{container_name} - Stopping Server'
 
-  # --- ワールド2以降を使う場合はコメントを外して追加 ---
-  # minecraft-edu-world2:
-  #   # コンテナ単位で通知先を切り替える場合（省略時は notifications セクションの設定を使用）
-  #   ntfy_topic: world2-alerts
-  #   # apprise_url: "discord://WEBHOOK_ID/WEBHOOK_TOKEN"
-  #   keywords:
-  #     - regex: 'Player Spawned: (?P<player>.+?) xuid:'
-  #       title_template: 'MCEE World2 - プレイヤー参加'
-  #       message_template: '{player} がワールド2に参加しました'
-  #     - regex: 'Player disconnected: (?P<player>[^,]+),'
-  #       title_template: 'MCEE World2 - プレイヤー退出'
-  #       message_template: '{player} がワールド2から退出しました'
-  #     - Server started.
-  #     - Stopping server
 
-# ------------------------------------------------
-# 通知先の設定
-# ------------------------------------------------
+# ================================================================
+# パターンB: イベントで通知先を分ける（global_keywords 活用）
+# ================================================================
+# world1: player join/leave → LINE + ntfy 両方
+# world2-5: player join/leave → ntfy のみ
+# 全ワールド: server start/stop → ntfy のみ
+#
+# ▼ パターンAの containers セクションを削除してから使用すること
+
+# settings:
+#   title_template: '{container_name}'    # 全キーワードのデフォルトタイトル
+#
+# containers:
+#   minecraft-edu-world1:
+#     keywords:
+#       # world1 の join/leave → LINE にも送る（ntfy は global_keywords が担当）
+#       - regex: 'Player Spawned: (?P<player>.+?) xuid:'
+#         message_template: '{player} がワールドに参加しました'
+#         ntfy_topic: ""          # ntfy を無効化（global_keywords 側で送るため）
+#
+#       - regex: 'Player disconnected: (?P<player>[^,]+),'
+#         message_template: '{player} がワールドから退出しました'
+#         ntfy_topic: ""          # ntfy を無効化
+#
+#   minecraft-edu-world2:
+#   minecraft-edu-world3:
+#   minecraft-edu-world4:
+#   minecraft-edu-world5:
+#
+# global_keywords:
+#   keywords:
+#     # 全ワールド → ntfy のみ
+#     - regex: 'Player Spawned: (?P<player>.+?) xuid:'
+#       message_template: '{player} がワールドに参加しました'
+#       apprise_url: ""           # LINE を無効化
+#
+#     - regex: 'Player disconnected: (?P<player>[^,]+),'
+#       message_template: '{player} がワールドから退出しました'
+#       apprise_url: ""
+#
+#     - keyword: Server started.
+#       message_template: 'Server Started'
+#       apprise_url: ""
+#
+#     - keyword: Stopping server
+#       message_template: 'Stopping Server'
+#       apprise_url: ""
+
+
+# ================================================================
+# パターンC: ワールドごとに通知先を変える（コンテナ単位）
+# ================================================================
+# world1 → LINE のみ（ntfy 無効）
+# world2 → ntfy のみ（LINE 無効）
+#
+# ▼ パターンAの containers セクションを削除してから使用すること
+
+# containers:
+#   minecraft-edu-world1:
+#     ntfy_topic: ""                            # コンテナ全体で ntfy を無効化
+#     keywords:
+#       - regex: 'Player Spawned: (?P<player>.+?) xuid:'
+#         title_template: '{container_name} - Player Joined'
+#         message_template: '{player} がワールドに参加しました'
+#
+#       - regex: 'Player disconnected: (?P<player>[^,]+),'
+#         title_template: '{container_name} - Player Left'
+#         message_template: '{player} がワールドから退出しました'
+#
+#       - keyword: Server started.
+#         title_template: '{container_name} - Server Started'
+#
+#       - keyword: Stopping server
+#         title_template: '{container_name} - Stopping Server'
+#
+#   minecraft-edu-world2:
+#     apprise_url: ""                           # コンテナ全体で LINE を無効化
+#     keywords:
+#       - regex: 'Player Spawned: (?P<player>.+?) xuid:'
+#         title_template: '{container_name} - Player Joined'
+#         message_template: '{player} がワールドに参加しました'
+#
+#       - regex: 'Player disconnected: (?P<player>[^,]+),'
+#         title_template: '{container_name} - Player Left'
+#         message_template: '{player} がワールドから退出しました'
+#
+#       - keyword: Server started.
+#         title_template: '{container_name} - Server Started'
+#
+#       - keyword: Stopping server
+#         title_template: '{container_name} - Stopping Server'
+
+
+# ================================================================
+# 通知先の設定（全パターン共通）
+# ================================================================
 # ntfy: LoggiFly が直接送信（Apprise 不要）
-# LINE, Email, Discord: Apprise URL 形式で指定
+# LINE, Discord 等: Apprise URL 形式で指定
 #   詳細: https://github.com/caronc/apprise/wiki
 
 notifications:
@@ -75,10 +172,12 @@ notifications:
     url: https://ntfy.sh
     topic: your-topic-name
 
-  # --- LINE, Email, Discord 等は Apprise 経由 ---
-  # 複数サービスはカンマ区切りで指定可能
+  # --- LINE, Discord 等は Apprise 経由 ---
+  # apprise:
+  #   url: "line://YOUR_LINE_CHANNEL_ACCESS_TOKEN/YOUR_LINE_USER_ID"
+
+  # 複数サービスへ同時送信する場合はカンマ区切りで指定
   # apprise:
   #   url: >-
   #     line://YOUR_LINE_CHANNEL_ACCESS_TOKEN/YOUR_LINE_USER_ID,
-  #     mailtos://user:pass@domain:587?smtp=smtp.example.com&from=noreply@example.com&to=recipient@example.com,
   #     discord://WEBHOOK_ID/WEBHOOK_TOKEN
