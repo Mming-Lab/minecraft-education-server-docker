@@ -32,7 +32,8 @@ trap 'shutdown_handler' SIGTERM SIGINT
 SERVER_BIN="/minecraft/bedrock_server_edu"
 SERVER_ZIP="/tmp/server.zip"
 VERSION_FILE="/minecraft/.server_version"
-DOWNLOAD_URL="https://aka.ms/downloadmee-linuxServerBeta"
+DOWNLOAD_URL="https://aka.ms/downloadmee-linuxserver"
+
 
 # リモートのファイル情報を取得（ETag or Last-Modified でバージョン判定）
 REMOTE_HEADERS=$(wget --spider -S "$DOWNLOAD_URL" 2>&1 || true)
