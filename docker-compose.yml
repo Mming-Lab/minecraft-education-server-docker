@@ -36,7 +36,6 @@ services:
       #   - resource_packs/  ← リソースパック（オプション）
       #   - allowlist.json   ← ホワイトリスト
       #   - packetlimitconfig.json ← パケット制限
-      #   - server-icon.png  ← サーバーアイコン
       - ${VOLUMES_BASE_PATH:-./}worlds/world1:/minecraft/world-data
 
       # セッションデータ（sessions/world1/ 配下）

@@ -48,7 +48,6 @@ worlds/world{N}/              # ワールドデータ（フォルダごと移植
 ├── resource_packs/           # リソースパック置き場
 ├── allowlist.json            # ホワイトリスト
 ├── packetlimitconfig.json    # パケット制限
-└── server-icon.png           # サーバーアイコン（手動配置）
 
 sessions/world{N}/            # Azure AD認証セッション
 logs/world{N}/                # サーバーログ
