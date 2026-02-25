@@ -28,3 +28,9 @@ CLAUDE.md
 
 専用サーバーサンプルツール.ipynb
 docs/手順書/
+
+# サーバー招待受け入れツール（作業中・配布物）
+accept_server_invite.py
+accept_server_invite.spec
+build/
+dist/

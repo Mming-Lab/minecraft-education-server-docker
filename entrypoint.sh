@@ -81,12 +81,22 @@ SESSION_FILE="${SESSION_DIR}/edu_server_session.json"
 # ================================================
 mkdir -p "${WORLD_DATA_DIR}"
 mkdir -p "${WORLD_DATA_DIR}/worlds"
+mkdir -p "${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}"
 
 # ================================================
 # 初期ファイル作成（存在しない場合のみ）
 # ================================================
 if [ ! -f "${WORLD_DATA_DIR}/allowlist.json" ]; then
     echo '[]' > "${WORLD_DATA_DIR}/allowlist.json"
+fi
+
+# アドオンのパック適用設定（初回のみ空ファイルを作成）
+# ホスト側の worlds/{LEVEL_NAME}/ から直接編集可能
+if [ ! -f "${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_behavior_packs.json" ]; then
+    echo '[]' > "${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_behavior_packs.json"
+fi
+if [ ! -f "${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_resource_packs.json" ]; then
+    echo '[]' > "${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_resource_packs.json"
 fi
 
 if [ ! -f "${WORLD_DATA_DIR}/packetlimitconfig.json" ]; then
@@ -124,6 +134,13 @@ ln -sf "${WORLD_DATA_DIR}/packetlimitconfig.json" packetlimitconfig.json
 
 # ゲームワールドデータへのシンボリックリンク
 ln -sf "${WORLD_DATA_DIR}/worlds" worlds
+
+# アドオン（behavior_packs / resource_packs）へのシンボリックリンク
+# worlds/world{N}/behavior_packs/ にパックを配置することで有効になる
+mkdir -p "${WORLD_DATA_DIR}/behavior_packs"
+mkdir -p "${WORLD_DATA_DIR}/resource_packs"
+ln -sf "${WORLD_DATA_DIR}/behavior_packs" behavior_packs
+ln -sf "${WORLD_DATA_DIR}/resource_packs" resource_packs
 
 
 # ================================================
