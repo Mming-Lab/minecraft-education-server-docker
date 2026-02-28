@@ -1,18 +1,20 @@
 # Minecraft Education Edition Dedicated Server - Docker
 
-1台のサーバーで、複数クラス分のMinecraft Educationワールドを同時運用するための構成です。
+1台のサーバーで、複数グループ分のMinecraft Educationワールドを同時運用するためのDocker構成です。
 
-クラスごとに異なるのはポート番号とわずかな差分だけ——
-全クラス共通の設定を一か所にまとめ、クラスごとに変えたい項目だけ上書きします。
+グループごとに異なるのはポート番号とわずかな差分だけ——
+全グループ共通の設定を一か所にまとめ、グループごとに変えたい項目だけ上書きします。
 
-**学校のMicrosoft 365（Azure AD）アカウントで認証するため、外部サービスへの新規登録は不要です。**
+> **前提**: このリポジトリは、公式ドキュメントに記載されているサーバーの構築・管理手順（デバイスコード認証、管理ツールによる有効化など）を理解していることを前提としています。
+> - [Dedicated Server 101](https://edusupport.minecraft.net/hc/en-us/articles/41758309283348)
+> - [Dedicated Server Tooling and Scripting Guide](https://edusupport.minecraft.net/hc/en-us/articles/41757415076884)
 
 ---
 
 ## こんな場面で役立ちます
 
-- クラス間でワールドデータやログが混在するのを防ぎたい
-- クラスが増えるたびに同じ設定を一から繰り返したくない
+- グループ間でワールドデータやログが混在するのを防ぎたい
+- グループが増えるたびに同じ設定を一から繰り返したくない
 - サーバー台数を増やさず1台でまとめて管理したい
 
 ---
@@ -20,7 +22,7 @@
 ## システム要件
 
 - Docker & Docker Compose
-- Azure AD グローバル管理者権限
+- Microsoft Entra テナントのグローバル管理者権限
 
 ---
 
@@ -32,36 +34,36 @@
 cp .env.example .env
 ```
 
-### 2. 全クラス共通の設定を決める
+### 2. 全グループ共通の設定を決める
 
-`.env` の `_COMMON` 項目に、全クラスで使う共通値を設定します。
+`.env` の `_COMMON` 項目に、全グループで使う共通値を設定します。
 
 ```bash
 SERVER_PUBLIC_IP=192.168.1.100  # サーバーのIPアドレス（必須）
-GAMEMODE_COMMON=creative         # 全クラス共通のゲームモード
-MAX_PLAYERS_COMMON=10            # 全クラス共通の最大人数
+GAMEMODE_COMMON=creative         # 全グループ共通のゲームモード
+MAX_PLAYERS_COMMON=10            # 全グループ共通の最大人数
 ```
 
 設定できる項目と選択肢は `.env.example` のコメントを参照してください。
 
-### 3. クラスごとの差分を設定する
+### 3. グループごとの差分を設定する
 
 ポート番号は必須です。それ以外は共通設定と変えたい項目だけ設定します。
 
 ```bash
-SERVER_PORT_WORLD_1=19132   # クラス1のポート（必須）
-SERVER_PORT_WORLD_2=19134   # クラス2のポート（必須）
+SERVER_PORT_WORLD_1=19132   # グループ1のポート（必須）
+SERVER_PORT_WORLD_2=19134   # グループ2のポート（必須）
 
-GAMEMODE_WORLD_2=survival   # クラス2だけゲームモードを変更
+GAMEMODE_WORLD_2=survival   # グループ2だけゲームモードを変更
 ```
 
 設定しなかった項目は自動的に `_COMMON` の値が使われます。
 
 > **優先順位:** 個別設定（`_WORLD_N`）> 共通設定（`_COMMON`）> デフォルト値
 
-### 4. クラス2以降のComposeファイルを追加する
+### 4. グループ2以降のComposeファイルを追加する
 
-クラス1は `docker-compose.yml` に含まれています。クラス2以降はテンプレートから作成します。
+グループ1は `docker-compose.yml` に含まれています。グループ2以降はテンプレートから作成します。
 
 ```bash
 cp docker-compose.world{N}.yml.example docker-compose.world2.yml
@@ -72,20 +74,31 @@ cp docker-compose.world{N}.yml.example docker-compose.world2.yml
 ### 5. 起動する
 
 ```bash
-# クラス1のみ
+# グループ1のみ
 docker compose up -d
 
-# クラス1 + 2
+# グループ1 + 2
 docker compose -f docker-compose.yml -f docker-compose.world2.yml up -d
 ```
 
 サーバーバイナリはコンテナ起動時に自動で最新版がダウンロードされます。
 
-### 6. サーバーを有効化する
+### 6. デバイスコード認証を行う
 
-起動後、[サーバー管理ツール（Python Notebook）](https://aka.ms/MCEDU-DS-Tooling)で `Enabled=True` に設定してください。
+初回起動時、サーバーはログにデバイスコードを出力します。ログファイルを確認してブラウザでサインインしてください。
 
-詳細は[公式ガイド](https://edusupport.minecraft.net/hc/en-us/articles/41757415076884)を参照してください。
+```
+logs/world1/
+```
+
+ログにデバイスコードとURLが表示されたら、ブラウザでそのURLを開き、テナントのグローバル管理者アカウントでサインインします。
+サインインが完了すると `sessions/world1/edu_server_session.json` が生成され、次回以降は自動的に認証が更新されます。
+
+### 7. サーバーを有効化する
+
+[Dedicated Server Admin Portal](https://aka.ms/dedicatedservers) にグローバル管理者アカウントでログインし、対象サーバーの **Enabled** トグルをオンにしてください。合わせて **Broadcast** トグルをオンにすると、クライアントのサーバー一覧に表示されます。
+
+詳細は[公式ガイド](https://edusupport.minecraft.net/hc/en-us/articles/46295288885268)を参照してください。
 
 ---
 
@@ -99,9 +112,9 @@ worlds/world{N}/              # ワールドデータ（フォルダごと移植
 ├── behavior_packs/           # ビヘイビアパック置き場
 ├── resource_packs/           # リソースパック置き場
 ├── allowlist.json            # ホワイトリスト
-├── packetlimitconfig.json    # パケット制限
+└── packetlimitconfig.json    # パケット制限
 
-sessions/world{N}/            # Azure AD認証セッション
+sessions/world{N}/            # Entra認証セッション
 logs/world{N}/                # サーバーログ
 ```
 
