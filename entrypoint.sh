@@ -90,12 +90,16 @@ if [ ! -f "${WORLD_DATA_DIR}/allowlist.json" ]; then
     echo '[]' > "${WORLD_DATA_DIR}/allowlist.json"
 fi
 
-# アドオンのパック適用設定（初回のみ空ファイルを作成）
+if [ ! -f "${WORLD_DATA_DIR}/permissions.json" ]; then
+    echo '[]' > "${WORLD_DATA_DIR}/permissions.json"
+fi
+
+# アドオンのパック適用設定（存在しないか空・無効な JSON の場合に初期化）
 # ホスト側の worlds/{LEVEL_NAME}/ から直接編集可能
-if [ ! -f "${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_behavior_packs.json" ]; then
+if ! jq '.' "${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_behavior_packs.json" > /dev/null 2>&1; then
     echo '[]' > "${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_behavior_packs.json"
 fi
-if [ ! -f "${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_resource_packs.json" ]; then
+if ! jq '.' "${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_resource_packs.json" > /dev/null 2>&1; then
     echo '[]' > "${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_resource_packs.json"
 fi
 
@@ -130,6 +134,7 @@ fi
 # ================================================
 # サーバーが /minecraft 直下から参照するため、シンボリックリンクでマップ
 ln -sf "${WORLD_DATA_DIR}/allowlist.json" allowlist.json
+ln -sf "${WORLD_DATA_DIR}/permissions.json" permissions.json
 ln -sf "${WORLD_DATA_DIR}/packetlimitconfig.json" packetlimitconfig.json
 
 # ゲームワールドデータへのシンボリックリンク
@@ -141,6 +146,42 @@ mkdir -p "${WORLD_DATA_DIR}/behavior_packs"
 mkdir -p "${WORLD_DATA_DIR}/resource_packs"
 ln -sf "${WORLD_DATA_DIR}/behavior_packs" behavior_packs
 ln -sf "${WORLD_DATA_DIR}/resource_packs" resource_packs
+
+# ================================================
+# アドオン自動配置
+# /minecraft/addons/ 以下の全フォルダを behavior_packs/ にコピーし
+# world_behavior_packs.json に自動登録する
+# ================================================
+ADDONS_SRC="/minecraft/addons"
+PACKS_FILE="${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_behavior_packs.json"
+
+if [ -d "$ADDONS_SRC" ]; then
+    for addon_dir in "$ADDONS_SRC"/*/; do
+        [ -d "$addon_dir" ] || continue
+        addon_name=$(basename "$addon_dir")
+        manifest="${addon_dir}manifest.json"
+        [ -f "$manifest" ] || continue
+
+        # behavior_packs/ にコピー（既存を削除してから上書き）
+        # cp -r はコピー先が存在すると内部に重複フォルダを作るため事前削除が必要
+        rm -rf "${WORLD_DATA_DIR}/behavior_packs/${addon_name}"
+        cp -r "$addon_dir" "${WORLD_DATA_DIR}/behavior_packs/${addon_name}"
+
+        # pack_id と version を取得
+        pack_id=$(jq -r '.header.uuid' "$manifest")
+        pack_version=$(jq -c '.header.version' "$manifest")
+
+        # world_behavior_packs.json に未登録なら追加
+        if ! jq -e ".[] | select(.pack_id == \"$pack_id\")" "$PACKS_FILE" > /dev/null 2>&1; then
+            jq --arg id "$pack_id" --argjson ver "$pack_version" \
+                '. += [{"pack_id": $id, "version": $ver}]' "$PACKS_FILE" > /tmp/packs_tmp.json
+            mv /tmp/packs_tmp.json "$PACKS_FILE"
+            echo "アドオン登録: ${addon_name} (${pack_id})"
+        else
+            echo "アドオン配置: ${addon_name} (登録済み)"
+        fi
+    done
+fi
 
 
 # ================================================
@@ -194,6 +235,18 @@ if [ "$FIRST_BOOT" = true ]; then
     echo "=============================================="
     echo "【${LEVEL_NAME}】初回起動 - Device Code認証が必要"
     echo "=============================================="
+fi
+
+# ================================================
+# Beta APIs 有効化（level.dat が存在する場合のみ）
+# 初回起動ではサーバーが level.dat を生成するため、2回目以降に適用される
+# ================================================
+LEVEL_DAT="${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/level.dat"
+if [ -f "$LEVEL_DAT" ]; then
+    echo "Beta APIs を有効化しています: $LEVEL_DAT"
+    python3 /minecraft/enable_beta_apis.py "$LEVEL_DAT" 2>&1 | tee -a "$LOG_FILE"
+else
+    echo "level.dat が未生成のため Beta APIs 設定をスキップします（初回起動後に再起動してください）"
 fi
 
 # ================================================

@@ -35,6 +35,7 @@ services:
       #   - behavior_packs/  ← 動作パック（オプション）
       #   - resource_packs/  ← リソースパック（オプション）
       #   - allowlist.json   ← ホワイトリスト
+      #   - permissions.json ← プレイヤー権限（operator/member/visitor）
       #   - packetlimitconfig.json ← パケット制限
       - ${VOLUMES_BASE_PATH:-./}worlds/world1:/minecraft/world-data
 

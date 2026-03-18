@@ -1,128 +1,49 @@
 # LoggiFly 設定ファイル（MCEE サーバー通知用）
 # ドキュメント: https://clemcer.github.io/loggifly/
 # Apprise 対応サービス: https://github.com/caronc/apprise/wiki
-#
-# 注意:
-#   - title_template は ASCII のみ有効（ntfy の HTTP ヘッダー制約）
-#   - 通知先の優先順位: キーワード単位 > コンテナ単位 > グローバル（notifications）
-#   - 空文字列 "" でそのチャネルを無効化できる
-#
-# パターンA: 全イベントを同じ通知先に送る（シンプル）          ← デフォルト（コメントなし）
-# パターンB: イベントごとに通知先を分ける                      ← 要コメント解除
+# 注意: title_template は ASCII のみ有効（ntfy の HTTP ヘッダー制約）
 
-# ================================================================
-# パターンA: 全イベント・全通知先統一
-# ================================================================
+# ------------------------------------------------
+# global_keywords: 全コンテナ共通のキーワード設定
+# ------------------------------------------------
+# ワールドを複数追加しても、この設定が全コンテナに自動適用される。
+# {container_name} はコンテナ名に自動置換される。
 
-containers:
-  minecraft-edu-world1:
-    keywords:
-      - regex: 'Player Spawned: (?P<player>.+?) xuid:'
-        title_template: '{container_name} - Player Joined'
-        message_template: '{player} がワールドに参加しました'
+global_keywords:
+  - regex: 'Player Spawned: (?P<player>.+?) xuid:'
+    title_template: '{container_name} - Player Joined'
+    message_template: '{player} がワールドに参加しました'
 
-      - regex: 'Player disconnected: (?P<player>[^,]+),'
-        title_template: '{container_name} - Player Left'
-        message_template: '{player} がワールドから退出しました'
+  - regex: 'Player disconnected: (?P<player>[^,]+),'
+    title_template: '{container_name} - Player Left'
+    message_template: '{player} がワールドから退出しました'
 
-      - keyword: Server started.
-        title_template: '{container_name} - Server Started'
+  - keyword: Server started.
+    title_template: '{container_name} - Server Started'
 
-      - keyword: Stopping server
-        title_template: '{container_name} - Stopping Server'
+  - keyword: Stopping server
+    title_template: '{container_name} - Stopping Server'
+
+  # chat_logger アドオンのチャットイベント
+  - regex: '\[ChatLogger\] sender=(?P<sender>.+?) message=(?P<message>.+)'
+    title_template: '{container_name} - Chat'
+    message_template: '{sender}: {message}'
 
 
-# ================================================================
-# パターンB: イベントごとに通知先を分ける（global_keywords 活用）
-# ================================================================
-# world1: join/leave → LINE + ntfy 両方
-# world2以降: join/leave → ntfy のみ
-# 全ワールド: start/stop → ntfy のみ
-#
-# ▼ パターンAの containers セクションを削除してから使用
-
-# settings:
-#   title_template: '{container_name}'
-#
-# containers:
-#   minecraft-edu-world1:
-#     keywords:
-#       - regex: 'Player Spawned: (?P<player>.+?) xuid:'
-#         message_template: '{player} がワールドに参加しました'
-#         ntfy_topic: ""        # ntfy は global_keywords 側で送るため無効化
-#
-#       - regex: 'Player disconnected: (?P<player>[^,]+),'
-#         message_template: '{player} がワールドから退出しました'
-#         ntfy_topic: ""
-#
-#   minecraft-edu-world2:
-#   minecraft-edu-world3:
-#
-# global_keywords:
-#   keywords:
-#     - regex: 'Player Spawned: (?P<player>.+?) xuid:'
-#       message_template: '{player} がワールドに参加しました'
-#       apprise_url: ""         # LINE 無効化
-#
-#     - regex: 'Player disconnected: (?P<player>[^,]+),'
-#       message_template: '{player} がワールドから退出しました'
-#       apprise_url: ""
-#
-#     - keyword: Server started.
-#       message_template: 'Server Started'
-#       apprise_url: ""
-#
-#     - keyword: Stopping server
-#       message_template: 'Stopping Server'
-#       apprise_url: ""
-
-
-# ================================================================
-# パターンC: ワールドごとに通知先を分ける（コンテナ単位）
-# ================================================================
-# world1 → LINE のみ / world2 → ntfy のみ
-#
-# ▼ パターンAの containers セクションを削除してから使用
+# ------------------------------------------------
+# containers: コンテナ個別の上書き設定（任意）
+# ------------------------------------------------
+# 特定のワールドだけ通知先を変えたい場合に使う。
+# 不要なら containers セクションごと削除して構わない。
 
 # containers:
 #   minecraft-edu-world1:
-#     ntfy_topic: ""            # このコンテナ全体で ntfy を無効化
-#     keywords:
-#       - regex: 'Player Spawned: (?P<player>.+?) xuid:'
-#         title_template: '{container_name} - Player Joined'
-#         message_template: '{player} がワールドに参加しました'
-#
-#       - regex: 'Player disconnected: (?P<player>[^,]+),'
-#         title_template: '{container_name} - Player Left'
-#         message_template: '{player} がワールドから退出しました'
-#
-#       - keyword: Server started.
-#         title_template: '{container_name} - Server Started'
-#
-#       - keyword: Stopping server
-#         title_template: '{container_name} - Stopping Server'
-#
+#     # ntfy のみに通知（Apprise を無効化）
+#     apprise_url: ""
 #   minecraft-edu-world2:
-#     apprise_url: ""           # このコンテナ全体で LINE を無効化
-#     keywords:
-#       - regex: 'Player Spawned: (?P<player>.+?) xuid:'
-#         title_template: '{container_name} - Player Joined'
-#         message_template: '{player} がワールドに参加しました'
-#
-#       - regex: 'Player disconnected: (?P<player>[^,]+),'
-#         title_template: '{container_name} - Player Left'
-#         message_template: '{player} がワールドから退出しました'
-#
-#       - keyword: Server started.
-#         title_template: '{container_name} - Server Started'
-#
-#       - keyword: Stopping server
-#         title_template: '{container_name} - Stopping Server'
+#     # LINE のみに通知（ntfy を無効化）
+#     ntfy_topic: ""
 
-
-# ================================================================
-# 通知先の設定（全パターン共通）
-# ================================================================
 
 notifications:
   ntfy:
@@ -131,9 +52,4 @@ notifications:
 
   # apprise:
   #   url: "line://YOUR_LINE_CHANNEL_ACCESS_TOKEN/YOUR_LINE_USER_ID"
-
-  # 複数サービスへ同時送信
-  # apprise:
-  #   url: >-
-  #     line://YOUR_LINE_CHANNEL_ACCESS_TOKEN/YOUR_LINE_USER_ID,
-  #     discord://WEBHOOK_ID/WEBHOOK_TOKEN
+  #   # 複数サービスはカンマ区切り: "line://...,discord://WEBHOOK_ID/WEBHOOK_TOKEN"

@@ -18,7 +18,11 @@ RUN apt-get update && apt-get install -y \
     jq \
     wget \
     unzip \
+    python3 \
     && rm -rf /var/lib/apt/lists/*
+
+# 日本語などマルチバイト文字の stdout 出力を正しく扱うための locale 設定
+ENV LANG=C.UTF-8
 
 WORKDIR /minecraft
 
@@ -26,8 +30,10 @@ WORKDIR /minecraft
 RUN groupadd -r minecraft && useradd -r -g minecraft -d /minecraft minecraft && \
     chown -R minecraft:minecraft /minecraft
 
-# 設定定義・エントリーポイント・ヘルスチェックスクリプト
-COPY --chown=minecraft:minecraft ./property-definitions.json ./entrypoint.sh ./healthcheck.sh /minecraft/
+# 設定定義・エントリーポイント・ヘルスチェックスクリプト・ツール
+COPY --chown=minecraft:minecraft ./property-definitions.json ./entrypoint.sh ./healthcheck.sh ./enable_beta_apis.py /minecraft/
+# アドオン（behavior_packs）
+COPY --chown=minecraft:minecraft ./addons /minecraft/addons/
 # Windows環境での改行コード問題を防止（CRLF→LF変換）
 RUN sed -i 's/\r$//' /minecraft/entrypoint.sh /minecraft/healthcheck.sh && \
     chmod +x /minecraft/entrypoint.sh /minecraft/healthcheck.sh
