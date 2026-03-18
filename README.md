@@ -105,13 +105,17 @@ logs/world1/
 ## ディレクトリ構成
 
 ```
+addons/                       # 自動配置されるビヘイビアパック（全ワールド共通）
+└── chat_logger_bp/           # 同梱: チャットロガー
+
 worlds/world{N}/              # ワールドデータ（フォルダごと移植可能）
 ├── worlds/{LEVEL_NAME}/      # ゲームワールドデータ
-│   ├── world_behavior_packs.json  # 適用するビヘイビアパック
+│   ├── world_behavior_packs.json  # 適用するビヘイビアパック（自動更新）
 │   └── world_resource_packs.json  # 適用するリソースパック
 ├── behavior_packs/           # ビヘイビアパック置き場
 ├── resource_packs/           # リソースパック置き場
 ├── allowlist.json            # ホワイトリスト
+├── permissions.json          # プレイヤー権限（operator/member/visitor）
 └── packetlimitconfig.json    # パケット制限
 
 sessions/world{N}/            # Entra認証セッション
@@ -122,34 +126,36 @@ logs/world{N}/                # サーバーログ
 
 ## アドオン（Add-on）
 
-1. パックを `worlds/world{N}/behavior_packs/` または `worlds/world{N}/resource_packs/` に配置
-2. `worlds/{LEVEL_NAME}/world_behavior_packs.json` にパックのUUIDを記載
+`addons/` フォルダに置いたビヘイビアパックは、コンテナ起動時に自動で配置・登録されます。
 
-```json
-[
-  {
-    "pack_id": "パックのmanifest.jsonにあるUUID",
-    "version": [1, 0, 0]
-  }
-]
-```
+### 同梱アドオン
 
-3. コンテナを再起動
+| アドオン | 説明 |
+|---|---|
+| `chat_logger_bp` | チャットメッセージをサーバーログに出力（LoggiFly 通知用） |
+
+> **Script API について**: `addons/` のアドオンが Script API を使う場合、Beta APIs（`gametest=1`）がコンテナ起動時に自動で有効化されます。
+
+### カスタムアドオンを追加する
+
+`addons/` にパックフォルダを追加してコンテナを再起動するだけです。`manifest.json` の `header.uuid` と `version` が自動で `world_behavior_packs.json` に登録されます。
+
+ワールドデータ側（`worlds/world{N}/behavior_packs/`）に直接配置する従来の方法も引き続き使えます。
 
 ---
 
 ## ログ監視・通知（LoggiFly）
 
-[LoggiFly](https://github.com/clemcer/LoggiFly)でプレイヤーの参加/退出やサーバーイベントを通知できます。
+[LoggiFly](https://github.com/clemcer/LoggiFly)でプレイヤーの参加/退出・チャット・サーバーイベントを通知できます。
 
 ```bash
 cp loggifly/config.yaml.example loggifly/config.yaml
-# config.yaml を編集して通知先を設定
+# config.yaml を編集して通知先（ntfy / LINE / Discord 等）を設定
 
 docker compose -f docker-compose.yml -f docker-compose.loggifly.yml up -d
 ```
 
-設定例は `loggifly/config.yaml.example` を参照してください。
+`global_keywords` を使っているため、ワールドを追加しても設定の変更は不要です。設定例は `loggifly/config.yaml.example` を参照してください。
 
 ---
 
