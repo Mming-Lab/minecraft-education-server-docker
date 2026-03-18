@@ -140,16 +140,34 @@ ln -sf "${WORLD_DATA_DIR}/packetlimitconfig.json" packetlimitconfig.json
 # ゲームワールドデータへのシンボリックリンク
 ln -sf "${WORLD_DATA_DIR}/worlds" worlds
 
-# アドオン（behavior_packs / resource_packs）へのシンボリックリンク
-# worlds/world{N}/behavior_packs/ にパックを配置することで有効になる
+# ホスト側パック置き場を確保（シンボリックリンクは使わない）
+# ※ サーバーバイナリが unzip 時に /minecraft/behavior_packs/ を実ディレクトリとして作成するため、
+#   ln -sf はシンボリックリンクをその中に作ってしまい二重パスになる。
+#   代わりに起動時にホスト側のパックをサーバーの実ディレクトリへ直接コピーする。
 mkdir -p "${WORLD_DATA_DIR}/behavior_packs"
 mkdir -p "${WORLD_DATA_DIR}/resource_packs"
-ln -sf "${WORLD_DATA_DIR}/behavior_packs" behavior_packs
-ln -sf "${WORLD_DATA_DIR}/resource_packs" resource_packs
+
+# worlds/world{N}/behavior_packs/ 内のユーザー提供パックをサーバーの behavior_packs/ にコピー
+for user_pack in "${WORLD_DATA_DIR}/behavior_packs"/*/; do
+    [ -d "$user_pack" ] || continue
+    pack_name=$(basename "$user_pack")
+    rm -rf "behavior_packs/${pack_name}"
+    cp -r "$user_pack" "behavior_packs/${pack_name}"
+    echo "ユーザーパック配置 (behavior): ${pack_name}"
+done
+
+# worlds/world{N}/resource_packs/ 内のユーザー提供パックをサーバーの resource_packs/ にコピー
+for user_pack in "${WORLD_DATA_DIR}/resource_packs"/*/; do
+    [ -d "$user_pack" ] || continue
+    pack_name=$(basename "$user_pack")
+    rm -rf "resource_packs/${pack_name}"
+    cp -r "$user_pack" "resource_packs/${pack_name}"
+    echo "ユーザーパック配置 (resource): ${pack_name}"
+done
 
 # ================================================
 # アドオン自動配置
-# /minecraft/addons/ 以下の全フォルダを behavior_packs/ にコピーし
+# /minecraft/addons/ 以下の全フォルダを behavior_packs/ に直接コピーし
 # world_behavior_packs.json に自動登録する
 # ================================================
 ADDONS_SRC="/minecraft/addons"
@@ -162,10 +180,9 @@ if [ -d "$ADDONS_SRC" ]; then
         manifest="${addon_dir}manifest.json"
         [ -f "$manifest" ] || continue
 
-        # behavior_packs/ にコピー（既存を削除してから上書き）
-        # cp -r はコピー先が存在すると内部に重複フォルダを作るため事前削除が必要
-        rm -rf "${WORLD_DATA_DIR}/behavior_packs/${addon_name}"
-        cp -r "$addon_dir" "${WORLD_DATA_DIR}/behavior_packs/${addon_name}"
+        # サーバーの behavior_packs/ に直接コピー（ユーザーパックより後に実行し上書き優先）
+        rm -rf "behavior_packs/${addon_name}"
+        cp -r "$addon_dir" "behavior_packs/${addon_name}"
 
         # pack_id と version を取得
         pack_id=$(jq -r '.header.uuid' "$manifest")
