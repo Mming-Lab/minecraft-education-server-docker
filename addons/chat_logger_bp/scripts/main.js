@@ -5,5 +5,5 @@ import { world } from "@minecraft/server";
 world.afterEvents.chatSend.subscribe((event) => {
     const sender = event.sender?.name ?? "unknown";
     const message = event.message ?? "";
-    console.warn(`[ChatLogger] sender=${sender} message=${message}`);
+    console.info(`[ChatLogger] sender=${sender} message=${message}`);
 });
