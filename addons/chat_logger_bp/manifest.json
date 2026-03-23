@@ -2,8 +2,8 @@
   "format_version": 2,
   "header": {
     "name": "Chat Logger",
-    "description": "チャットメッセージを console.warn でサーバーログに出力する。LoggiFly で通知する際に使用。",
-    "uuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "description": "チャットメッセージを console.info でサーバーログに出力する。LoggiFly で通知する際に使用。",
+    "uuid": "c8b3da46-469e-4c77-b81e-f7b9431fe903",
     "version": [1, 0, 0],
     "min_engine_version": [1, 21, 0]
   },
@@ -11,7 +11,7 @@
     {
       "type": "script",
       "language": "javascript",
-      "uuid": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "uuid": "7a10cc8d-0798-45d2-af77-bd1fc9d9f0b2",
       "version": [1, 0, 0],
       "entry": "scripts/main.js"
     }
