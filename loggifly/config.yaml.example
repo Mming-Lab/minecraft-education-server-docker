@@ -53,3 +53,16 @@ notifications:
   # apprise:
   #   url: "line://YOUR_LINE_CHANNEL_ACCESS_TOKEN/YOUR_LINE_USER_ID"
   #   # 複数サービスはカンマ区切り: "line://...,discord://WEBHOOK_ID/WEBHOOK_TOKEN"
+
+  # --- Microsoft Teams への通知 ---
+  # Teams チャンネルで Incoming Webhook を作成すると以下のような URL が発行される:
+  #   https://TEAM-NAME.webhook.office.com/webhookb2/AAAAAA@BBBBBB/IncomingWebhook/CCCCCC/DDDDDD
+  #
+  # そのまま apprise url に貼り付けるだけで動作する（Apprise v0.7.7 以降）:
+  # apprise:
+  #   url: "https://TEAM-NAME.webhook.office.com/webhookb2/AAAAAA@BBBBBB/IncomingWebhook/CCCCCC/DDDDDD"
+  #
+  # または msteams:// スキームでも指定可能:
+  #   msteams://{team}/{tokenA@tokenB}/{tokenC}/{tokenD}/
+  # apprise:
+  #   url: "msteams://TEAM-NAME/AAAAAA@BBBBBB/CCCCCC/DDDDDD/"
