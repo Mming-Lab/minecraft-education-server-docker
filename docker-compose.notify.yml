@@ -1,0 +1,32 @@
+# Vector + Apprise API によるチャットログ通知
+#
+# 使い方:
+#   docker compose -f docker-compose.yml -f docker-compose.notify.yml up -d
+#
+# 事前準備:
+#   apprise/minecraft.yml.example をコピーして通知先 URL を設定してください
+#   cp apprise/minecraft.yml.example apprise/minecraft.yml
+
+services:
+  vector:
+    image: timberio/vector:latest-alpine
+    container_name: vector
+    command: ["--config", "/etc/vector/vector.toml"]
+    volumes:
+      - ./vector/vector.toml:/etc/vector/vector.toml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${VOLUMES_BASE_PATH:-./}chat_logs:/chat_logs:ro
+      - vector_data:/var/lib/vector
+    depends_on:
+      - apprise
+    restart: unless-stopped
+
+  apprise:
+    image: caronc/apprise:latest
+    container_name: apprise
+    volumes:
+      - ./apprise:/config:ro
+    restart: unless-stopped
+
+volumes:
+  vector_data:

@@ -1,0 +1,30 @@
+# Apprise API 通知設定ファイル
+# このファイルを minecraft.yml にコピーして通知先 URL を設定してください
+#
+#   cp apprise/minecraft.yml.example apprise/minecraft.yml
+#
+# 設定後は Vector から http://apprise:8000/notify/minecraft に通知されます
+# Apprise 対応サービス一覧: https://github.com/caronc/apprise/wiki
+
+urls:
+  # ------------------------------------------------
+  # Microsoft Teams（Incoming Webhook）
+  # ------------------------------------------------
+  # Teams チャンネルで Incoming Webhook を作成して URL を設定
+  # Webhook URL をそのまま貼り付け可能（Apprise v0.7.7 以降）:
+  # - https://TEAM-NAME.webhook.office.com/webhookb2/AAAAAA@BBBBBB/IncomingWebhook/CCCCCC/DDDDDD
+  #
+  # または msteams:// スキーム:
+  # - msteams://TEAM-NAME/AAAAAA@BBBBBB/CCCCCC/DDDDDD/
+
+  # ------------------------------------------------
+  # LINE
+  # ------------------------------------------------
+  # LINE Notify または LINE Messaging API のトークンを設定
+  # - line://LINE_CHANNEL_ACCESS_TOKEN/LINE_USER_ID
+
+  # ------------------------------------------------
+  # 複数サービスへの同時通知も可能
+  # ------------------------------------------------
+  # - https://TEAMS_WEBHOOK_URL
+  # - line://TOKEN/USER_ID

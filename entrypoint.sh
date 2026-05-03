@@ -27,46 +27,62 @@ shutdown_handler() {
 trap 'shutdown_handler' SIGTERM SIGINT
 
 # ================================================
-# サーバーバイナリの自動更新
+# サーバーバイナリの準備
+# server-bin/bedrock_server_edu の有無とバージョンファイルの有無で動作が変わる:
+#   バイナリなし                        → 自動ダウンロード → server-bin/ に展開
+#   バイナリあり + .server_version なし → 手動配置モード（そのまま使用）
+#   バイナリあり + .server_version あり → 自動管理モード（リモートと比較して必要なら更新）
 # ================================================
 SERVER_BIN="/minecraft/bedrock_server_edu"
+SERVER_BIN_DIR="/minecraft/server-bin"
+SHARED_BIN="${SERVER_BIN_DIR}/bedrock_server_edu"
 SERVER_ZIP="/tmp/server.zip"
-VERSION_FILE="/minecraft/.server_version"
+VERSION_FILE="${SERVER_BIN_DIR}/.server_version"
 DOWNLOAD_URL="https://aka.ms/downloadmee-linuxserver"
 
-
-# リモートのファイル情報を取得（ETag or Last-Modified でバージョン判定）
-REMOTE_HEADERS=$(wget --spider -S "$DOWNLOAD_URL" 2>&1 || true)
-REMOTE_ETAG=$(echo "$REMOTE_HEADERS" | grep -i "ETag:" | tail -1 | sed 's/.*ETag: *//i' | tr -d '\r')
-REMOTE_MODIFIED=$(echo "$REMOTE_HEADERS" | grep -i "Last-Modified:" | tail -1 | sed 's/.*Last-Modified: *//i' | tr -d '\r')
-REMOTE_VERSION="${REMOTE_ETAG:-$REMOTE_MODIFIED}"
-
-# ローカルのバージョン情報と比較
-LOCAL_VERSION=""
-if [ -f "$VERSION_FILE" ]; then
-    LOCAL_VERSION=$(cat "$VERSION_FILE")
-fi
-
-NEED_UPDATE=false
-if [ ! -f "$SERVER_BIN" ]; then
-    echo "サーバーバイナリが見つかりません。ダウンロードします..."
-    NEED_UPDATE=true
-elif [ -n "$REMOTE_VERSION" ] && [ "$REMOTE_VERSION" != "$LOCAL_VERSION" ]; then
-    echo "サーバーの新しいバージョンが利用可能です。更新します..."
-    NEED_UPDATE=true
-else
-    echo "サーバーは最新です。"
-fi
-
-if [ "$NEED_UPDATE" = true ]; then
-    wget -q --show-progress -O "$SERVER_ZIP" "$DOWNLOAD_URL"
-    unzip -o "$SERVER_ZIP" -d /minecraft
-    rm -f "$SERVER_ZIP"
+apply_server_files() {
+    cp -r "${SERVER_BIN_DIR}/." /minecraft/
     chmod +x "$SERVER_BIN"
-    if [ -n "$REMOTE_VERSION" ]; then
+}
+
+fetch_remote_version() {
+    local headers
+    headers=$(wget --spider -S --no-cache --user-agent="Mozilla/5.0" "$DOWNLOAD_URL" 2>&1 || true)
+    local etag modified
+    etag=$(echo "$headers" | grep -i "ETag:" | tail -1 | sed 's/.*ETag: *//i' | tr -d '\r')
+    modified=$(echo "$headers" | grep -i "Last-Modified:" | tail -1 | sed 's/.*Last-Modified: *//i' | tr -d '\r')
+    echo "${etag:-$modified}"
+}
+
+download_server() {
+    wget -q --show-progress --no-cache --user-agent="Mozilla/5.0" -O "$SERVER_ZIP" "$DOWNLOAD_URL"
+    unzip -o "$SERVER_ZIP" -d "$SERVER_BIN_DIR"
+    rm -f "$SERVER_ZIP"
+    chmod +x "$SHARED_BIN"
+}
+
+if [ ! -f "$SHARED_BIN" ]; then
+    echo "サーバーバイナリが見つかりません。ダウンロードします..."
+    REMOTE_VERSION=$(fetch_remote_version)
+    download_server
+    [ -n "$REMOTE_VERSION" ] && echo "$REMOTE_VERSION" > "$VERSION_FILE"
+    echo "ダウンロードが完了しました。"
+    apply_server_files
+elif [ ! -f "$VERSION_FILE" ]; then
+    echo "手動配置バイナリを使用します。"
+    apply_server_files
+else
+    REMOTE_VERSION=$(fetch_remote_version)
+    LOCAL_VERSION=$(cat "$VERSION_FILE")
+    if [ -n "$REMOTE_VERSION" ] && [ "$REMOTE_VERSION" != "$LOCAL_VERSION" ]; then
+        echo "新しいバージョンが利用可能です。更新します..."
+        download_server
         echo "$REMOTE_VERSION" > "$VERSION_FILE"
+        echo "更新が完了しました。"
+    else
+        echo "サーバーは最新です。"
     fi
-    echo "サーバーの更新が完了しました。"
+    apply_server_files
 fi
 
 # ================================================
@@ -92,15 +108,6 @@ fi
 
 if [ ! -f "${WORLD_DATA_DIR}/permissions.json" ]; then
     echo '[]' > "${WORLD_DATA_DIR}/permissions.json"
-fi
-
-# アドオンのパック適用設定（存在しないか空・無効な JSON の場合に初期化）
-# ホスト側の worlds/{LEVEL_NAME}/ から直接編集可能
-if ! jq '.' "${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_behavior_packs.json" > /dev/null 2>&1; then
-    echo '[]' > "${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_behavior_packs.json"
-fi
-if ! jq '.' "${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_resource_packs.json" > /dev/null 2>&1; then
-    echo '[]' > "${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_resource_packs.json"
 fi
 
 if [ ! -f "${WORLD_DATA_DIR}/packetlimitconfig.json" ]; then
@@ -166,42 +173,6 @@ for user_pack in "${WORLD_DATA_DIR}/resource_packs"/*/; do
 done
 
 # ================================================
-# アドオン自動配置
-# /minecraft/addons/ 以下の全フォルダを behavior_packs/ に直接コピーし
-# world_behavior_packs.json に自動登録する
-# ================================================
-ADDONS_SRC="/minecraft/addons"
-PACKS_FILE="${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/world_behavior_packs.json"
-
-if [ -d "$ADDONS_SRC" ]; then
-    for addon_dir in "$ADDONS_SRC"/*/; do
-        [ -d "$addon_dir" ] || continue
-        addon_name=$(basename "$addon_dir")
-        manifest="${addon_dir}manifest.json"
-        [ -f "$manifest" ] || continue
-
-        # サーバーの behavior_packs/ に直接コピー（ユーザーパックより後に実行し上書き優先）
-        rm -rf "behavior_packs/${addon_name}"
-        cp -r "$addon_dir" "behavior_packs/${addon_name}"
-
-        # pack_id と version を取得
-        pack_id=$(jq -r '.header.uuid' "$manifest")
-        pack_version=$(jq -c '.header.version' "$manifest")
-
-        # world_behavior_packs.json に未登録なら追加
-        if ! jq -e ".[] | select(.pack_id == \"$pack_id\")" "$PACKS_FILE" > /dev/null 2>&1; then
-            jq --arg id "$pack_id" --argjson ver "$pack_version" \
-                '. += [{"pack_id": $id, "version": $ver}]' "$PACKS_FILE" > /tmp/packs_tmp.json
-            mv /tmp/packs_tmp.json "$PACKS_FILE"
-            echo "アドオン登録: ${addon_name} (${pack_id})"
-        else
-            echo "アドオン配置: ${addon_name} (登録済み)"
-        fi
-    done
-fi
-
-
-# ================================================
 # 環境変数からserver.propertiesの値を動的に更新
 # property-definitions.json に基づいてループ処理
 # ================================================
@@ -252,18 +223,6 @@ if [ "$FIRST_BOOT" = true ]; then
     echo "=============================================="
     echo "【${LEVEL_NAME}】初回起動 - Device Code認証が必要"
     echo "=============================================="
-fi
-
-# ================================================
-# Beta APIs 有効化（level.dat が存在する場合のみ）
-# 初回起動ではサーバーが level.dat を生成するため、2回目以降に適用される
-# ================================================
-LEVEL_DAT="${WORLD_DATA_DIR}/worlds/${LEVEL_NAME}/level.dat"
-if [ -f "$LEVEL_DAT" ]; then
-    echo "Beta APIs を有効化しています: $LEVEL_DAT"
-    python3 /minecraft/enable_beta_apis.py "$LEVEL_DAT" 2>&1 | tee -a "$LOG_FILE"
-else
-    echo "level.dat が未生成のため Beta APIs 設定をスキップします（初回起動後に再起動してください）"
 fi
 
 # ================================================

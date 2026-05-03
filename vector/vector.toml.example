@@ -1,0 +1,107 @@
+# Vector 設定 - Minecraft Education Edition サーバー監視
+# このファイルをコピーして通知先を設定してください
+#
+#   cp vector/vector.toml.example vector/vector.toml
+#
+# ドキュメント: https://vector.dev/docs/
+
+# ================================================
+# ソース: ChatLog ファイル（全イベント）
+# ================================================
+[sources.chat_log_files]
+type = "file"
+include = ["/chat_logs/**/ChatLog_*.txt"]
+read_from = "end"
+data_dir = "/var/lib/vector"
+
+# ================================================
+# 変換: [日時] - で始まる行のみ通知対象に
+# ================================================
+[transforms.parse_chat_events]
+type = "remap"
+inputs = ["chat_log_files"]
+source = '''
+  msg = string!(.message)
+  file_path = string!(.file)
+
+  world_match = parse_regex(file_path, r'/chat_logs/(?P<world>[^/]+)/') ?? {}
+  world = if exists(world_match.world) { to_string(world_match.world) } else { "unknown" }
+
+  .notify = false
+  if match(msg, r'^\[.+\] - ') {
+    .title = "minecraft-edu-" + world
+    .body = replace(msg, r'^\[.+\] - ', "")
+    .notify = true
+  }
+'''
+
+# 通知対象のみ通過
+[transforms.filter_notify]
+type = "filter"
+inputs = ["parse_chat_events"]
+condition = '.notify == true'
+
+# ntfy 用: .message に本文をセット（raw_message codec で送信するため）
+[transforms.format_ntfy]
+type = "remap"
+inputs = ["filter_notify"]
+source = '''
+  .ntfy_title = .title
+  .message = .body
+'''
+
+# LINE 対象フィルター（world1 のみ）
+# LINE 通知が不要な場合はこのフィルターと format_apprise、sinks.apprise を削除してください
+[transforms.filter_line]
+type = "filter"
+inputs = ["filter_notify"]
+condition = '.title == "minecraft-edu-world1"'
+
+# Apprise API 形式に整形
+[transforms.format_apprise]
+type = "remap"
+inputs = ["filter_line"]
+source = '''
+  . = {
+    "title": .title,
+    "body": .body,
+    "type": "info"
+  }
+'''
+
+# ================================================
+# シンク: ntfy に直接通知（全ワールド共通トピック）
+# ================================================
+[sinks.ntfy]
+type = "http"
+inputs = ["format_ntfy"]
+uri = "https://ntfy.sh/YOUR_NTFY_TOPIC"
+method = "post"
+encoding.codec = "raw_message"
+framing.method = "newline_delimited"
+
+[sinks.ntfy.request.headers]
+Title = "{{ ntfy_title }}"
+
+[sinks.ntfy.batch]
+max_events = 1
+timeout_secs = 1
+
+# ================================================
+# シンク: Apprise API に通知（LINE - world1 のみ）
+# LINE 通知が不要な場合はこのセクションを削除してください
+# ================================================
+[sinks.apprise]
+type = "http"
+inputs = ["format_apprise"]
+uri = "http://apprise:8000/notify/minecraft"
+method = "post"
+encoding.codec = "json"
+framing.method = "newline_delimited"
+
+[sinks.apprise.request.headers]
+Content-Type = "application/json"
+
+[sinks.apprise.batch]
+max_events = 1
+timeout_secs = 1

@@ -8,8 +8,10 @@ worlds/
 sessions/
 
 # ログファイル（ディレクトリ全体）
+chat_logs/
 logs/
 *.log
+
 
 # VSCode設定（各環境固有）
 .vscode/
@@ -17,6 +19,14 @@ logs/
 # LoggiFly通知設定（トークン等の秘密情報を含む）
 # config.yaml.example をコピーして config.yaml を作成すること
 loggifly/config.yaml
+
+# Apprise通知設定（トークン等の秘密情報を含む）
+# minecraft.yml.example をコピーして minecraft.yml を作成すること
+apprise/minecraft.yml
+
+# Vector通知設定（ntfy トピック等の環境固有設定を含む）
+# vector.toml.example をコピーして vector.toml を作成すること
+vector/vector.toml
 
 # 追加ワールドの Override ファイル（テンプレートからコピーして作成）
 # docker-compose.world{N}.yml.example（テンプレート）は Git 管理対象
@@ -31,3 +41,6 @@ docs/
 
 # サーバー招待受け入れツール（作業中・配布物）
 tooling/
+
+# サーバーモジュール
+server/
