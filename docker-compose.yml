@@ -6,6 +6,7 @@ services:
     build: .
     container_name: minecraft-edu-world1
     hostname: mcedu-world1
+    user: "0:0"
     ports:
       - "${SERVER_PORT_WORLD_1}:${SERVER_PORT_WORLD_1}/udp"
     environment:
@@ -28,6 +29,9 @@ services:
       CONTENT_LOG_FILE_ENABLED: ${CONTENT_LOG_FILE_ENABLED_WORLD_1:-${CONTENT_LOG_FILE_ENABLED_COMMON:-false}}
       DISABLE_PLAYER_INTERACTION: ${DISABLE_PLAYER_INTERACTION_WORLD_1:-${DISABLE_PLAYER_INTERACTION_COMMON:-false}}
       DISABLE_CUSTOM_SKINS: ${DISABLE_CUSTOM_SKINS_WORLD_1:-${DISABLE_CUSTOM_SKINS_COMMON:-false}}
+      CHAT_LOGGING_ENABLED: ${CHAT_LOGGING_ENABLED_WORLD_1:-${CHAT_LOGGING_ENABLED_COMMON:-true}}
+      ALLOW_CODE_BUILDER: ${ALLOW_CODE_BUILDER_WORLD_1:-${ALLOW_CODE_BUILDER_COMMON:-true}}
+      ALLOW_COMMAND_BLOCKS: ${ALLOW_COMMAND_BLOCKS_WORLD_1:-${ALLOW_COMMAND_BLOCKS_COMMON:-true}}
     volumes:
       # ワールドデータ（worlds/world1/ 配下）
       # worlds/world1に以下のファイル/フォルダが含まれます:
@@ -45,6 +49,12 @@ services:
 
       # ログファイル（logs/world1/ 配下）
       - ${VOLUMES_BASE_PATH:-./}logs/world1:/minecraft/logs
+
+      # チャットログ（chat-logging-enabled=true の場合に出力）
+      - ${VOLUMES_BASE_PATH:-./}chat_logs/world1:/minecraft/chat_logs
+
+      # 手動配置バイナリ（server/bedrock_server_edu を置くと自動ダウンロードをスキップ）
+      - ${VOLUMES_BASE_PATH:-./}server:/minecraft/server-bin
 
     logging:
       driver: "local"

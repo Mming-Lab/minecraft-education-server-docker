@@ -34,10 +34,15 @@ services:
       CONTENT_LOG_FILE_ENABLED: ${CONTENT_LOG_FILE_ENABLED_WORLD_{N}:-${CONTENT_LOG_FILE_ENABLED_COMMON:-false}}
       DISABLE_PLAYER_INTERACTION: ${DISABLE_PLAYER_INTERACTION_WORLD_{N}:-${DISABLE_PLAYER_INTERACTION_COMMON:-false}}
       DISABLE_CUSTOM_SKINS: ${DISABLE_CUSTOM_SKINS_WORLD_{N}:-${DISABLE_CUSTOM_SKINS_COMMON:-false}}
+      CHAT_LOGGING_ENABLED: ${CHAT_LOGGING_ENABLED_WORLD_{N}:-${CHAT_LOGGING_ENABLED_COMMON:-true}}
+      ALLOW_CODE_BUILDER: ${ALLOW_CODE_BUILDER_WORLD_{N}:-${ALLOW_CODE_BUILDER_COMMON:-true}}
+      ALLOW_COMMAND_BLOCKS: ${ALLOW_COMMAND_BLOCKS_WORLD_{N}:-${ALLOW_COMMAND_BLOCKS_COMMON:-true}}
     volumes:
       - ${VOLUMES_BASE_PATH:-./}worlds/world{N}:/minecraft/world-data
       - ${VOLUMES_BASE_PATH:-./}sessions/world{N}:/minecraft/sessions
       - ${VOLUMES_BASE_PATH:-./}logs/world{N}:/minecraft/logs
+      - ${VOLUMES_BASE_PATH:-./}chat_logs/world{N}:/minecraft/chat_logs
+      - ${VOLUMES_BASE_PATH:-./}server:/minecraft/server-bin
     logging:
       driver: "local"
       options:

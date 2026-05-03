@@ -17,5 +17,8 @@
   "texturepack-required": { "env": "TEXTUREPACK_REQUIRED" },
   "content-log-file-enabled": { "env": "CONTENT_LOG_FILE_ENABLED" },
   "disable-player-interaction": { "env": "DISABLE_PLAYER_INTERACTION" },
-  "disable-custom-skins": { "env": "DISABLE_CUSTOM_SKINS" }
+  "disable-custom-skins": { "env": "DISABLE_CUSTOM_SKINS" },
+  "chat-logging-enabled": { "env": "CHAT_LOGGING_ENABLED" },
+  "allow-code-builder": { "env": "ALLOW_CODE_BUILDER" },
+  "allow-command-blocks": { "env": "ALLOW_COMMAND_BLOCKS" }
 }
