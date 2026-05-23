@@ -28,7 +28,7 @@ apprise/minecraft.yml
 # vector.toml.example をコピーして vector.toml を作成すること
 vector/vector.toml
 
-# 追加ワールドの Override ファイル（テンプレートからコピーして作成）
+# ワールド compose ファイル（make add で自動生成）
 # docker-compose.world{N}.yml.example（テンプレート）は Git 管理対象
 docker-compose.world[0-9]*.yml
 

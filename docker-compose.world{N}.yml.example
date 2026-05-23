@@ -1,11 +1,10 @@
 # ================================================
-# ワールド{N}（追加ワールド用テンプレート）
+# ワールド{N}（テンプレート）
 # ================================================
 # 使い方:
-#   1. このファイルをコピー: cp docker-compose.world{N}.yml.example docker-compose.world2.yml
-#   2. {N} を実際の番号に置換（エディタの検索・置換で一括変更）
-#   3. .env にポート番号を設定: SERVER_PORT_WORLD_2=19134
-#   4. 起動: docker compose -f docker-compose.yml -f docker-compose.world2.yml up -d
+#   1. ワールドを追加: make add PORT=19134
+#      （{N} の採番・ファイル生成・.env 追記を自動化）
+#   2. 起動: make up  または  make up WORLDS="1 2"
 
 services:
   minecraft-edu-world{N}:
@@ -30,6 +29,7 @@ services:
       MAX_THREADS: ${MAX_THREADS_WORLD_{N}:-${MAX_THREADS_COMMON:-8}}
       LEVEL_SEED: ${LEVEL_SEED_WORLD_{N}:-}
       DEFAULT_PLAYER_PERMISSION_LEVEL: ${DEFAULT_PLAYER_PERMISSION_LEVEL_WORLD_{N}:-${DEFAULT_PLAYER_PERMISSION_LEVEL_COMMON:-member}}
+      OPERATOR_XUID: ${OPERATOR_XUID_WORLD_{N}:-${OPERATOR_XUID_COMMON:-}}
       TEXTUREPACK_REQUIRED: ${TEXTUREPACK_REQUIRED_WORLD_{N}:-${TEXTUREPACK_REQUIRED_COMMON:-true}}
       CONTENT_LOG_FILE_ENABLED: ${CONTENT_LOG_FILE_ENABLED_WORLD_{N}:-${CONTENT_LOG_FILE_ENABLED_COMMON:-false}}
       DISABLE_PLAYER_INTERACTION: ${DISABLE_PLAYER_INTERACTION_WORLD_{N}:-${DISABLE_PLAYER_INTERACTION_COMMON:-false}}
@@ -38,21 +38,41 @@ services:
       ALLOW_CODE_BUILDER: ${ALLOW_CODE_BUILDER_WORLD_{N}:-${ALLOW_CODE_BUILDER_COMMON:-true}}
       ALLOW_COMMAND_BLOCKS: ${ALLOW_COMMAND_BLOCKS_WORLD_{N}:-${ALLOW_COMMAND_BLOCKS_COMMON:-true}}
     volumes:
+      # ワールドデータ（worlds/world{N}/ 配下）
+      # worlds/world{N}に以下のファイル/フォルダが含まれます:
+      #   - worlds/          ← ゲームワールドデータ
+      #   - behavior_packs/  ← 動作パック（オプション）
+      #   - resource_packs/  ← リソースパック（オプション）
+      #   - allowlist.json   ← ホワイトリスト
+      #   - permissions.json ← プレイヤー権限（operator/member/visitor）
+      #   - packetlimitconfig.json ← パケット制限
       - ${VOLUMES_BASE_PATH:-./}worlds/world{N}:/minecraft/world-data
+
+      # セッションデータ（sessions/world{N}/ 配下）
+      # IP/ポート変更時には再取得が必要なため別管理
       - ${VOLUMES_BASE_PATH:-./}sessions/world{N}:/minecraft/sessions
+
+      # ログファイル（logs/world{N}/ 配下）
       - ${VOLUMES_BASE_PATH:-./}logs/world{N}:/minecraft/logs
+
+      # チャットログ（chat-logging-enabled=true の場合に出力）
       - ${VOLUMES_BASE_PATH:-./}chat_logs/world{N}:/minecraft/chat_logs
+
+      # 手動配置バイナリ（server/bedrock_server_edu を置くと自動ダウンロードをスキップ）
       - ${VOLUMES_BASE_PATH:-./}server:/minecraft/server-bin
+
     logging:
       driver: "local"
       options:
-        max-size: "50m"
-        max-file: "7"
-        compress: "true"
+        max-size: "50m"    # ファイルが 50MB で自動ローテーション
+        max-file: "7"       # 7世代保持（超過分は自動削除）
+        compress: "true"    # 自動圧縮
+
     deploy:
       resources:
         limits:
           memory: 2g
           cpus: "2"
+
     restart: unless-stopped
-    stop_grace_period: 30s
+    stop_grace_period: 30s   # シャットダウン猶予（ワールド保存完了を待つ）

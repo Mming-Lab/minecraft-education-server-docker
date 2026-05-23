@@ -1,7 +1,7 @@
 # Vector + Apprise API によるチャットログ通知
 #
 # 使い方:
-#   docker compose -f docker-compose.yml -f docker-compose.notify.yml up -d
+#   make up NOTIFY=true
 #
 # 事前準備:
 #   apprise/minecraft.yml.example をコピーして通知先 URL を設定してください

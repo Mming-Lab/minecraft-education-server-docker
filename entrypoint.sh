@@ -41,7 +41,12 @@ VERSION_FILE="${SERVER_BIN_DIR}/.server_version"
 DOWNLOAD_URL="https://aka.ms/downloadmee-linuxserver"
 
 apply_server_files() {
-    cp -r "${SERVER_BIN_DIR}/." /minecraft/
+    # allowlist.json / permissions.json / packetlimitconfig.json はユーザーデータのため上書きしない
+    find "${SERVER_BIN_DIR}" -maxdepth 1 -mindepth 1 \
+        ! -name "allowlist.json" \
+        ! -name "permissions.json" \
+        ! -name "packetlimitconfig.json" \
+        -exec cp -r {} /minecraft/ \;
     chmod +x "$SERVER_BIN"
 }
 
@@ -107,7 +112,18 @@ if [ ! -f "${WORLD_DATA_DIR}/allowlist.json" ]; then
 fi
 
 if [ ! -f "${WORLD_DATA_DIR}/permissions.json" ]; then
-    echo '[]' > "${WORLD_DATA_DIR}/permissions.json"
+    if [ -n "${OPERATOR_XUID}" ]; then
+        cat > "${WORLD_DATA_DIR}/permissions.json" << EOF
+[
+   {
+      "permission" : "operator",
+      "xuid" : "${OPERATOR_XUID}"
+   }
+]
+EOF
+    else
+        echo '[]' > "${WORLD_DATA_DIR}/permissions.json"
+    fi
 fi
 
 if [ ! -f "${WORLD_DATA_DIR}/packetlimitconfig.json" ]; then

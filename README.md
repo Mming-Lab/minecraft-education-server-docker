@@ -20,34 +20,25 @@ cp .env.example .env
 
 ```bash
 SERVER_PUBLIC_IP=192.168.1.100  # サーバーのIPアドレス（必須）
-SERVER_PORT_WORLD_1=19132        # ワールド1のポート（必須）
 ```
 
 その他の設定は `_COMMON` 項目で全ワールドのデフォルト値を一括設定できます。個別ワールドで上書きしたい場合は `_WORLD_1` のように指定します。
 
 > **優先順位:** 個別設定（`_WORLD_N`）> 共通設定（`_COMMON`）> デフォルト値
 
-### 2. ワールド2以降を追加する場合
+### 2. ワールドを追加
 
 ```bash
-cp docker-compose.world{N}.yml.example docker-compose.world2.yml
-# ファイル内の {N} をすべて 2 に置換（エディタの検索・置換で一括変換）
+make add PORT=19132   # ワールド1
+make add PORT=19134   # ワールド2（複数運用する場合）
 ```
 
-`.env` にポート番号を追加：
-
-```bash
-SERVER_PORT_WORLD_2=19134
-```
+ワールド番号は自動採番されます。ポート番号は `.env` にも自動追記されます。
 
 ### 3. 起動
 
 ```bash
-# ワールド1のみ
-docker compose up -d
-
-# ワールド1 + 2
-docker compose -f docker-compose.yml -f docker-compose.world2.yml up -d
+make up
 ```
 
 サーバーバイナリは起動時に自動でダウンロードされます。`server/bedrock_server_edu` に手動配置するとダウンロードをスキップします。
@@ -64,21 +55,57 @@ docker compose -f docker-compose.yml -f docker-compose.world2.yml up -d
 
 ---
 
+## Makefile コマンド一覧
+
+> **Windows の場合:** Docker Desktop は WSL2 上で動作するため、WSL2 のターミナル（Ubuntu 等）で実行してください。
+
+```bash
+make up                    # 全ワールドを起動
+make up WORLDS="1 2"       # 指定ワールドのみ起動
+make up NOTIFY=true        # 通知スタックも一緒に起動
+make down                  # 全ワールドを停止
+make restart               # 全ワールドを再起動
+make logs N=1              # ワールド1 のログを表示
+make ps                    # 全コンテナの状態を表示
+make add PORT=19134        # 新しいワールドを追加
+```
+
+---
+
 ## ディレクトリ構成
 
+### プロジェクト構成（Git 管理対象）
+
 ```
-worlds/world{N}/              # ワールドデータ
-├── worlds/{LEVEL_NAME}/      # ゲームワールドデータ
-├── behavior_packs/           # ビヘイビアパック
-├── resource_packs/           # リソースパック
+Makefile                              # ワールドの起動・追加コマンド
+docker-compose.world{N}.yml.example   # ワールド定義テンプレート（make add が使用）
+docker-compose.notify.yml             # 通知スタック（Vector + Apprise）
+Dockerfile / entrypoint.sh            # コンテナ定義
+.env.example                          # 環境変数テンプレート
+addons/                               # Script API チャットロガーアドオン
+vector/vector.toml.example            # Vector 設定テンプレート
+apprise/minecraft.yml.example         # 通知先設定テンプレート
+```
+
+### 実行時データ（Git 管理外）
+
+```
+docker-compose.world1.yml             # make add で生成
+docker-compose.world2.yml             # make add で生成
+.env                                  # .env.example からコピー
+
+worlds/world{N}/                      # ワールドデータ
+├── worlds/{LEVEL_NAME}/              # ゲームワールドデータ
+├── behavior_packs/                   # ビヘイビアパック
+├── resource_packs/                   # リソースパック
 ├── allowlist.json
 ├── permissions.json
 └── packetlimitconfig.json
 
-sessions/world{N}/            # Entra 認証セッション
-logs/world{N}/                # サーバーログ
-chat_logs/world{N}/           # チャットログ（Vector 通知に使用）
-server/                       # サーバーバイナリ手動配置用
+sessions/world{N}/                    # Entra 認証セッション（IP変更時に再取得が必要）
+logs/world{N}/                        # サーバーログ
+chat_logs/world{N}/                   # チャットログ（Vector 通知に使用）
+server/                               # サーバーバイナリ手動配置用（省略可）
 ```
 
 ---
@@ -94,7 +121,7 @@ cp vector/vector.toml.example vector/vector.toml
 cp apprise/minecraft.yml.example apprise/minecraft.yml
 # minecraft.yml を編集して通知先 URL を設定（LINE 等）
 
-docker compose -f docker-compose.yml -f docker-compose.notify.yml up -d
+make up NOTIFY=true
 ```
 
 ChatLog ファイル（`chat_logs/world{N}/`）を監視し、`[日時] - ` で始まる行をすべて通知します。

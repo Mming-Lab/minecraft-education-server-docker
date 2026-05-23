@@ -51,7 +51,8 @@ source = '''
   .message = .body
 '''
 
-# LINE 対象フィルター（world1 のみ）
+# LINE 対象フィルター（通知したいワールドを指定）
+# 複数ワールドに通知する場合: condition = 'includes(["minecraft-edu-world1", "minecraft-edu-world2"], .title)'
 # LINE 通知が不要な場合はこのフィルターと format_apprise、sinks.apprise を削除してください
 [transforms.filter_line]
 type = "filter"
