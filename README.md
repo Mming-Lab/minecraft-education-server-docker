@@ -61,7 +61,7 @@ make up
 
 ```bash
 # 本番運用
-make up NOTIFY=true BACKUP=true    # 全ワールド + 通知 + 自動バックアップ（毎日 4:00）
+make up NOTIFY=true BACKUP=true    # 全ワールド + 通知 + 自動バックアップ
 
 # 起動オプション
 make up                            # 全ワールドのみ起動
