@@ -1,0 +1,66 @@
+# ================================================
+# 自動バックアップ（offen/docker-volume-backup）
+#
+# 使い方:
+#   make up BACKUP=true          # バックアップサービスも一緒に起動
+#   make backup                  # 今すぐ手動バックアップ（全体）
+#
+# スケジュール:
+#   毎日（月〜土）4:00 JST  → 毎日接続するワールドのみ / 7日保持
+#   毎週（日）   4:00 JST  → 全ワールド一括 / 28日保持
+#
+# BACKUP_CRON_EXPRESSION の書き方（TZ: Asia/Tokyo 基準）:
+#   "0 4 * * *"     毎日 4:00
+#   "0 4 * * 1-6"   月〜土 4:00
+#   "0 4 * * 0"     毎週日曜 4:00
+#   "0 4 * * 1"     毎週月曜 4:00
+#   "0 */6 * * *"   6時間ごと
+#   書式: 分 時 日 月 曜日（0=日曜〜6=土曜）
+#
+# 毎日バックアップするワールドを追加する場合:
+#   backup-daily の volumes に worlds/worldN と sessions/worldN を追記
+# ================================================
+
+services:
+  # ------------------------------------------------
+  # 日次バックアップ（月〜土）
+  # 毎日接続するワールドのみ対象
+  # ------------------------------------------------
+  backup-daily:
+    image: offen/docker-volume-backup:v2
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Tokyo
+      BACKUP_CRON_EXPRESSION: "0 4 * * 1-6"
+      BACKUP_RETENTION_DAYS: "7"
+      BACKUP_FILENAME: "backup-daily-%Y-%m-%dT%H-%M-%S.tar.gz"
+      BACKUP_STOP_DURING_BACKUP_LABEL: docker-volume-backup.stop-during-backup
+    volumes:
+      # ▼ 毎日バックアップするワールドをここに追記
+      - ${VOLUMES_BASE_PATH:-./}worlds/world1:/backup/worlds/world1:ro
+      - ${VOLUMES_BASE_PATH:-./}sessions/world1:/backup/sessions/world1:ro
+      # - ${VOLUMES_BASE_PATH:-./}worlds/world2:/backup/worlds/world2:ro
+      # - ${VOLUMES_BASE_PATH:-./}sessions/world2:/backup/sessions/world2:ro
+      # ▲ ここまで
+      - ./backups:/archive
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  # ------------------------------------------------
+  # 週次バックアップ（日曜）
+  # 全ワールド一括・設定ファイルも含む
+  # ------------------------------------------------
+  backup-weekly:
+    image: offen/docker-volume-backup:v2
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Tokyo
+      BACKUP_CRON_EXPRESSION: "0 4 * * 0"
+      BACKUP_RETENTION_DAYS: "28"
+      BACKUP_FILENAME: "backup-weekly-%Y-%m-%dT%H-%M-%S.tar.gz"
+      BACKUP_STOP_DURING_BACKUP_LABEL: docker-volume-backup.stop-during-backup
+    volumes:
+      - ${VOLUMES_BASE_PATH:-./}worlds:/backup/worlds:ro
+      - ${VOLUMES_BASE_PATH:-./}sessions:/backup/sessions:ro
+      - ./.env:/backup/.env:ro
+      - ./backups:/archive
+      - /var/run/docker.sock:/var/run/docker.sock:ro

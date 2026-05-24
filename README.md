@@ -60,14 +60,22 @@ make up
 > **Windows の場合:** Docker Desktop は WSL2 上で動作するため、WSL2 のターミナル（Ubuntu 等）で実行してください。
 
 ```bash
-make up                    # 全ワールドを起動
-make up WORLDS="1 2"       # 指定ワールドのみ起動
-make up NOTIFY=true        # 通知スタックも一緒に起動
-make down                  # 全ワールドを停止
-make restart               # 全ワールドを再起動
-make logs N=1              # ワールド1 のログを表示
-make ps                    # 全コンテナの状態を表示
-make add PORT=19134        # 新しいワールドを追加
+# 本番運用
+make up NOTIFY=true BACKUP=true    # 全ワールド + 通知 + 自動バックアップ（毎日 4:00）
+
+# 起動オプション
+make up                            # 全ワールドのみ起動
+make up WORLDS="1 2"              # 指定ワールドのみ起動
+make up NOTIFY=true               # 通知スタックも一緒に起動
+make up BACKUP=true               # バックアップサービスも一緒に起動
+
+# その他
+make down                         # 全ワールドを停止
+make restart                      # 全ワールドを再起動
+make logs N=1                     # ワールド1 のログを表示
+make ps                           # 全コンテナの状態を表示
+make backup                       # 今すぐ手動バックアップ
+make add PORT=19134               # 新しいワールドを追加
 ```
 
 ---

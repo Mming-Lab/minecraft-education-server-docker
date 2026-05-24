@@ -1,14 +1,23 @@
 # ================================================
 # 使い方:
-#   make up                    # 全ワールドを起動
-#   make up WORLDS="1 2"       # 指定ワールドのみ起動
-#   make up NOTIFY=true        # 通知スタックも一緒に起動
-#   make down                  # 全ワールドを停止
-#   make restart               # 全ワールドを再起動
-#   make logs N=1              # ワールド1 のログを表示
-#   make ps                    # 全コンテナの状態を表示
-#   make build                 # イメージをビルド
-#   make add PORT=19134        # 新しいワールドを追加
+#
+# 【本番運用】
+#   make up NOTIFY=true BACKUP=true   # 全ワールド + 通知 + 自動バックアップ
+#
+# 【起動オプション】
+#   make up                           # 全ワールドのみ起動
+#   make up WORLDS="1 2"             # 指定ワールドのみ起動
+#   make up NOTIFY=true              # 通知スタックも一緒に起動
+#   make up BACKUP=true              # バックアップサービスも一緒に起動
+#
+# 【その他】
+#   make down                        # 全ワールドを停止
+#   make restart                     # 全ワールドを再起動
+#   make logs N=1                    # ワールド1 のログを表示
+#   make ps                          # 全コンテナの状態を表示
+#   make build                       # イメージをビルド
+#   make backup                      # 今すぐ手動バックアップ
+#   make add PORT=19134              # 新しいワールドを追加
 # ================================================
 
 ifdef WORLDS
@@ -21,7 +30,11 @@ ifdef NOTIFY
   _COMPOSE_FILES += -f docker-compose.notify.yml
 endif
 
-.PHONY: up down restart logs ps build add
+ifdef BACKUP
+  _COMPOSE_FILES += -f docker-compose.backup.yml
+endif
+
+.PHONY: up down restart logs ps build add backup
 
 up:
 	docker compose $(_COMPOSE_FILES) up -d
@@ -43,6 +56,14 @@ ps:
 
 build:
 	docker compose $(_COMPOSE_FILES) build
+
+backup:
+	@CONTAINER=$$(docker ps --filter "name=backup-weekly" --format "{{.Names}}" | head -1); \
+	 if [ -z "$$CONTAINER" ]; then \
+	   echo "エラー: バックアップサービスが起動していません。先に 'make up BACKUP=true' を実行してください"; \
+	   exit 1; \
+	 fi; \
+	 docker exec $$CONTAINER backup
 
 add:
 ifndef PORT
