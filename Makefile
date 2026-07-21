@@ -18,6 +18,11 @@
 #   make build                       # イメージをビルド
 #   make backup                      # 今すぐ手動バックアップ
 #   make add PORT=19134              # 新しいワールドを追加
+#
+# 【permission denied / make: command not found になる場合（NAS 等）】
+#   Docker への接続に root 権限が必要で、かつ make が sudo の PATH に
+#   含まれていない環境では、現在の PATH を引き継いで実行する:
+#     sudo env "PATH=$PATH" make up
 # ================================================
 
 ifdef WORLDS
@@ -76,4 +81,4 @@ endif
 	 echo "ワールド$$N を追加しました (ポート: $(PORT))"; \
 	 echo "  → docker-compose.world$$N.yml を生成"; \
 	 echo "  → .env に SERVER_PORT_WORLD_$$N=$(PORT) を追記"; \
-	 echo "  → make up で起動できます"
+	 echo "  → make up または sudo env \"PATH=\$$PATH\" make up で起動できます"

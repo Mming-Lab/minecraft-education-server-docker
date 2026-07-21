@@ -58,6 +58,12 @@ make up
 ## Makefile コマンド一覧
 
 > **Windows の場合:** Docker Desktop は WSL2 上で動作するため、WSL2 のターミナル（Ubuntu 等）で実行してください。
+>
+> **`permission denied` / `make: command not found` になる場合（NAS 等）:** Docker デーモンへの接続に root 権限が必要で、かつ `make` が sudo の `PATH` に含まれていない環境では、以下のように現在の `PATH` を引き継いで実行してください。
+>
+> ```bash
+> sudo env "PATH=$PATH" make up
+> ```
 
 ```bash
 # 本番運用
