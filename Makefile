@@ -18,6 +18,12 @@
 #   make build                       # イメージをビルド
 #   make backup                      # 今すぐ手動バックアップ
 #   make add PORT=19134              # 新しいワールドを追加
+#   make sync                        # テンプレート変更を既存 worldN.yml に反映（再生成）
+#
+# 【テンプレート（docker-compose.world{N}.yml.example）を変更したとき】
+#   docker-compose.world{N}.yml.example が唯一のテンプレート。
+#   既存の docker-compose.worldN.yml は {N} を番号に置換しただけの派生物なので、
+#   手で編集せずに make sync（または make up 時に自動）で再生成する。
 #
 # 【permission denied / make: command not found になる場合（NAS 等）】
 #   Docker への接続に root 権限が必要で、かつ make が sudo の PATH に
@@ -39,15 +45,26 @@ ifdef BACKUP
   _COMPOSE_FILES += -f docker-compose.backup.yml
 endif
 
-.PHONY: up down restart logs ps build add backup
+.PHONY: up down restart logs ps build add backup sync
 
-up:
+# 既存の docker-compose.worldN.yml をテンプレートから再生成する。
+# テンプレート（docker-compose.world{N}.yml.example）を変更したら、
+# 手で各ファイルを直さずにこれで一括反映する。
+sync:
+	@for f in docker-compose.world[0-9]*.yml; do \
+	   [ -e "$$f" ] || continue; \
+	   N=$$(echo "$$f" | sed 's/^docker-compose\.world\([0-9]*\)\.yml$$/\1/'); \
+	   sed 's/{N}/'"$$N"'/g' 'docker-compose.world{N}.yml.example' > "$$f"; \
+	   echo "同期: $$f （テンプレートから再生成）"; \
+	 done
+
+up: sync
 	docker compose $(_COMPOSE_FILES) up -d
 
 down:
 	docker compose $(_COMPOSE_FILES) down
 
-restart:
+restart: sync
 	docker compose $(_COMPOSE_FILES) restart
 
 logs:
@@ -59,7 +76,7 @@ endif
 ps:
 	docker compose $(_COMPOSE_FILES) ps
 
-build:
+build: sync
 	docker compose $(_COMPOSE_FILES) build
 
 backup:
