@@ -76,6 +76,7 @@ make up NOTIFY=true               # 通知スタックも一緒に起動
 make up BACKUP=true               # バックアップサービスも一緒に起動
 
 # その他
+make build                        # イメージを再ビルド
 make down                         # 全ワールドを停止
 make restart                      # 全ワールドを再起動
 make logs N=1                     # ワールド1 のログを表示
@@ -83,6 +84,16 @@ make ps                           # 全コンテナの状態を表示
 make backup                       # 今すぐ手動バックアップ
 make add PORT=19134               # 新しいワールドを追加
 ```
+
+> **設定ファイルを更新したときは再ビルドが必要:** `property-definitions.json` / `entrypoint.sh` / `Dockerfile` はビルド時にイメージへ COPY されるため、これらの変更（新バージョン対応の取り込みなど）を反映するにはイメージの再ビルドが必要です。
+>
+> ```bash
+> make build   # イメージを再ビルド
+> make down
+> make up
+> ```
+>
+> なお **Minecraft サーバーバイナリ自体は起動時に自動更新**されるため、バイナリのバージョンアップだけであれば再ビルドは不要です（再ビルドが必要なのは上記リポジトリ側ファイルを変更した場合）。
 
 ---
 
