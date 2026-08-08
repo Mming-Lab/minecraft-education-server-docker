@@ -1,6 +1,7 @@
 {
   "server-public-ip": { "env": "SERVER_PUBLIC_IP" },
   "server-port": { "env": "SERVER_PORT" },
+  "transport": { "env": "TRANSPORT" },
   "level-name": { "env": "LEVEL_NAME" },
   "gamemode": { "env": "GAMEMODE" },
   "difficulty": { "env": "DIFFICULTY" },
