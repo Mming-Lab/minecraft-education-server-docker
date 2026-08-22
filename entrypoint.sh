@@ -189,6 +189,24 @@ for user_pack in "${WORLD_DATA_DIR}/resource_packs"/*/; do
 done
 
 # ================================================
+# 公開アドレスの LAN / WAN 切り替え
+# SERVER_NETWORK (lan|wan) に応じて SERVER_PUBLIC_IP を確定する
+# ================================================
+SERVER_NETWORK="${SERVER_NETWORK:-lan}"
+if [ "$SERVER_NETWORK" = "wan" ]; then
+    SERVER_PUBLIC_IP="$SERVER_PUBLIC_IP_WAN"
+else
+    SERVER_PUBLIC_IP="$SERVER_PUBLIC_IP_LAN"
+fi
+# 選択したほうが空なら、もう一方にフォールバック（設定漏れ対策）
+if [ -z "$SERVER_PUBLIC_IP" ]; then
+    SERVER_PUBLIC_IP="${SERVER_PUBLIC_IP_LAN:-$SERVER_PUBLIC_IP_WAN}"
+    echo "警告: SERVER_NETWORK=${SERVER_NETWORK} 用のアドレスが未設定のためフォールバックしました (server-public-ip=${SERVER_PUBLIC_IP})"
+fi
+export SERVER_PUBLIC_IP
+echo "公開アドレス: server-public-ip=${SERVER_PUBLIC_IP} (network=${SERVER_NETWORK})"
+
+# ================================================
 # 環境変数からserver.propertiesの値を動的に更新
 # property-definitions.json に基づいてループ処理
 # ================================================

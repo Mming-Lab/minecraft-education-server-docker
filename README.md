@@ -19,8 +19,11 @@ cp .env.example .env
 `.env` を編集して最低限以下を設定します。
 
 ```bash
-SERVER_PUBLIC_IP=192.168.1.100  # サーバーのIPアドレス（必須）
+SERVER_PUBLIC_IP_LAN=192.168.1.100   # LAN 内からの接続先IP（必須）
+# SERVER_PUBLIC_IP_WAN=example.com   # LAN 外から接続させる場合のみ設定
 ```
+
+LAN 内用と LAN 外用のアドレスを両方定義しておき、ワールドごとに `SERVER_NETWORK_WORLD_N=wan` のように指定すれば、どちらの接続先を広告するかをワールド単位で切り替えられます（未指定なら `SERVER_NETWORK_COMMON`、それも無ければ `lan`）。
 
 その他の設定は `_COMMON` 項目で全ワールドのデフォルト値を一括設定できます。個別ワールドで上書きしたい場合は `_WORLD_1` のように指定します。
 
