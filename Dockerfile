@@ -1,13 +1,13 @@
-# Minecraft Education Edition Dedicated Server (Beta)
-# 公式要件: Ubuntu 18以降
+# Minecraft Education Edition Dedicated Server
+# 公式要件: Ubuntu 18.04 以降（64bit・2コア以上・RAM 1GB 以上）
 # サーバーバイナリは起動時に自動ダウンロード・更新される
 
 FROM ubuntu:22.04
 
 LABEL org.opencontainers.image.title="Minecraft Education Edition Dedicated Server" \
-      org.opencontainers.image.description="Docker container for Minecraft Education Edition Dedicated Server (Beta)" \
+      org.opencontainers.image.description="Docker container for Minecraft Education Edition Dedicated Server" \
       org.opencontainers.image.source="https://github.com/Mming-Lab/minecraft-education-server-docker" \
-      org.opencontainers.image.licenses="Apache-2.0"
+      org.opencontainers.image.licenses="PolyForm-Noncommercial-1.0.0"
 
 # ランタイム + ダウンロード用パッケージ
 RUN apt-get update && apt-get install -y \

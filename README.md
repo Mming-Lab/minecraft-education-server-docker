@@ -3,8 +3,8 @@
 1台のサーバーで、複数グループ分のMinecraft Educationワールドを同時運用するためのDocker構成です。
 
 > **前提**: 公式ドキュメントに記載のサーバー構築手順（デバイスコード認証・管理ツールによる有効化など）を理解していることを前提としています。
-> - [Dedicated Server 101](https://edusupport.minecraft.net/hc/en-us/articles/41758309283348)
-> - [Dedicated Server Tooling and Scripting Guide](https://edusupport.minecraft.net/hc/en-us/articles/41757415076884)
+> - [Dedicated Server FAQ](https://edusupport.minecraft.net/hc/en-us/articles/41758309283348)
+> - [Dedicated Server Alternate Configuration](https://edusupport.minecraft.net/hc/en-us/articles/41757415076884)（Tooling and Scripting Notebook）
 
 ---
 
@@ -38,6 +38,10 @@ make add PORT=19134   # ワールド2（複数運用する場合）
 
 ワールド番号は自動採番されます。ポート番号は `.env` にも自動追記されます。
 
+> **ポート番号の注意:**
+> - 公式はセキュリティ上、既定ポート（19132）を避けることを推奨しています。
+> - 同一ホスト上のワールドには**必ず別々のポート**を割り当ててください。同じポートで2つ起動すると、参加者側に「無効なテナントID（Invalid Tenant ID）」エラーが出ます。
+
 ### 3. 起動
 
 ```bash
@@ -50,11 +54,18 @@ make up
 
 初回起動時にログ（`logs/world{N}/`）にデバイスコードとURLが出力されます。ブラウザでそのURLを開き、テナントのグローバル管理者アカウントでサインインしてください。
 
+> テナント設定で「Allow Teachers to Manage Servers」が有効な場合は、教員（Faculty）アカウントでもサーバーの作成・認証ができます。ただしテナント側の Dedicated Server 有効化そのものは、グローバル管理者しか行えません。
+
 サインイン後に `sessions/world{N}/edu_server_session.json` が生成され、以降は自動更新されます。
 
 ### 5. サーバーを有効化
 
-[Dedicated Server Admin Portal](https://aka.ms/dedicatedservers) でサーバーの **Enabled** と **Broadcast** をオンにしてください。
+[Dedicated Server Admin Portal](https://aka.ms/dedicatedservers) でサーバーの **Enabled** をオンにしてください（オフのままでは誰も参加できません）。
+
+**Broadcast** は任意です。
+
+- **オン**: テナント内の全ユーザーのサーバー一覧に自動表示されます（ユーザー側から一覧を削除することはできません）。
+- **オフ**: ユーザーがクライアントの「サーバーを追加」から、12桁の英数字（大文字小文字の区別なし）のサーバーIDを手入力して参加します。
 
 ---
 
@@ -108,9 +119,10 @@ make add PORT=19134               # 新しいワールドを追加
 Makefile                              # ワールドの起動・追加コマンド
 docker-compose.world{N}.yml.example   # ワールド定義テンプレート（make add が使用）
 docker-compose.notify.yml             # 通知スタック（Vector + Apprise）
+docker-compose.backup.yml             # 自動バックアップ（make up BACKUP=true）
 Dockerfile / entrypoint.sh            # コンテナ定義
+property-definitions.json             # 環境変数 → server.properties のマッピング定義
 .env.example                          # 環境変数テンプレート
-addons/                               # Script API チャットロガーアドオン
 vector/vector.toml.example            # Vector 設定テンプレート
 apprise/minecraft.yml.example         # 通知先設定テンプレート
 ```
@@ -130,9 +142,9 @@ worlds/world{N}/                      # ワールドデータ
 ├── permissions.json
 └── packetlimitconfig.json
 
-sessions/world{N}/                    # Entra 認証セッション（IP変更時に再取得が必要）
+sessions/world{N}/                    # Entra 認証セッション（自動更新。失効時は再度デバイスコード認証）
 logs/world{N}/                        # サーバーログ
-chat_logs/world{N}/                   # チャットログ（Vector 通知に使用）
+chat_logs/world{N}/                   # チャットログ（CHAT_LOGGING_ENABLED=true のとき出力）
 server/                               # サーバーバイナリ手動配置用（省略可）
 ```
 
@@ -154,11 +166,21 @@ make up NOTIFY=true
 
 ChatLog ファイル（`chat_logs/world{N}/`）を監視し、`[日時] - ` で始まる行をすべて通知します。
 
+> **前提:** ChatLog ファイルはサーバー本体の機能（`chat-logging-enabled`、1.21.133 以降）で出力されます。`.env` の `CHAT_LOGGING_ENABLED_COMMON=true`（既定値）が必要です。この設定はあとから変更できますが、反映にはサーバーの再起動が必要です。
+
 ---
 
 ## 参考資料
 
-- [公式ドキュメント](https://edusupport.minecraft.net/hc/en-us/sections/46294021588884-Servers)
+- [公式ドキュメント（Servers セクション）](https://edusupport.minecraft.net/hc/en-us/sections/46294021588884-Servers)
+  - [Dedicated Server FAQ](https://edusupport.minecraft.net/hc/en-us/articles/41758309283348)
+  - [Dedicated Server System Requirements](https://edusupport.minecraft.net/hc/en-us/articles/46913335157140)
+  - [IT Admin: Create Dedicated Servers](https://edusupport.minecraft.net/hc/en-us/articles/46370720373908)
+  - [Teacher View: Create Dedicated Servers](https://edusupport.minecraft.net/hc/en-us/articles/46295348713236)
+  - [Dedicated Server Alternate Configuration](https://edusupport.minecraft.net/hc/en-us/articles/41757415076884)
+  - [Modifying Existing Servers](https://edusupport.minecraft.net/hc/en-us/articles/46295288885268)（`server.properties` の各項目一覧）
+  - [Dedicated Server Advanced Setup](https://edusupport.minecraft.net/hc/en-us/articles/48786821856532)（allowlist・パスコード）
+  - [Enabling Cross-Tenant Play](https://edusupport.minecraft.net/hc/en-us/articles/51711271699092)（他テナントからの参加。本構成では未検証）
 
 ---
 
