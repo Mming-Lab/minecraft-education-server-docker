@@ -33,8 +33,8 @@
 #     sudo env "PATH=$PATH" make up
 #
 # 【ログやワールドデータが作られない場合】
-#   マウント先ディレクトリにコンテナ実行ユーザー（.env の PUID/PGID、既定 1000）が
-#   書き込めていない。対処は README の「トラブルシューティング」を参照。
+#   マウント先ディレクトリにコンテナ実行ユーザー（既定では make 実行ユーザーと
+#   同じ UID）が書き込めていない。対処は README の「トラブルシューティング」を参照。
 #   sudo make up で起動しても解決しない（コンテナ内は常に PUID で動くため）。
 # ================================================
 
@@ -51,6 +51,20 @@ endif
 ifdef BACKUP
   _COMPOSE_FILES += -f docker-compose.backup.yml
 endif
+
+# コンテナ実行ユーザーの UID/GID。ホスト側ディレクトリの所有者と揃えるために使う。
+# 通常は設定不要で、make 実行ユーザーの値を自動採用する。
+# 別の値にしたい場合だけ .env に PUID= / PGID= を書く（変更後はイメージの再ビルドが必要）。
+PUID := $(shell sed -n 's/^PUID=//p' .env 2>/dev/null | tail -1)
+PGID := $(shell sed -n 's/^PGID=//p' .env 2>/dev/null | tail -1)
+ifeq ($(strip $(PUID)),)
+  PUID := $(shell id -u 2>/dev/null || echo 1000)
+endif
+ifeq ($(strip $(PGID)),)
+  PGID := $(shell id -g 2>/dev/null || echo 1000)
+endif
+export PUID
+export PGID
 
 .PHONY: up down restart logs ps build add backup sync dirs
 

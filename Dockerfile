@@ -26,8 +26,8 @@ ENV LANG=C.UTF-8
 WORKDIR /minecraft
 
 # 実行ユーザーの UID/GID（ホスト側のマウント先と揃えるため可変にする）
-# 既定は 1000（Linux デスクトップの最初のユーザー）。変更する場合は .env の
-# PUID / PGID を設定してイメージを再ビルドする。
+# 通常は Makefile が make 実行ユーザーの id -u / id -g を自動で渡す。
+# ここの既定値 1000 は、docker compose を直接実行した場合のフォールバック。
 ARG PUID=1000
 ARG PGID=1000
 
