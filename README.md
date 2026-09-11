@@ -29,6 +29,8 @@ LAN 内用と LAN 外用のアドレスを両方定義しておき、ワール�
 
 > **優先順位:** 個別設定（`_WORLD_N`）> 共通設定（`_COMMON`）> デフォルト値
 
+> **実行ユーザー（PUID / PGID）:** コンテナは非 root で動作します。既定は UID/GID ともに 1000（Linux の初期ユーザー）で、ほとんどの環境ではそのままで構いません。`id -u` の結果が 1000 以外なら `.env` の `PUID` / `PGID` をその値に変更してください。ここが `worlds/` などの所有者とずれていると、サーバーがログもワールドデータも書き込めません。
+
 ### 2. ワールドを追加
 
 ```bash
@@ -73,7 +75,13 @@ make up
 
 > **Windows の場合:** Docker Desktop は WSL2 上で動作するため、WSL2 のターミナル（Ubuntu 等）で実行してください。
 >
-> **`permission denied` / `make: command not found` になる場合（NAS 等）:** Docker デーモンへの接続に root 権限が必要で、かつ `make` が sudo の `PATH` に含まれていない環境では、以下のように現在の `PATH` を引き継いで実行してください。
+> **`permission denied while trying to connect to the Docker daemon socket` になる場合:** 実行ユーザーが `docker` グループに属していません。以下で追加し、**一度ログアウトして入り直して**ください。
+>
+> ```bash
+> sudo usermod -aG docker $USER    # 再ログイン後に有効
+> ```
+>
+> **`make: command not found` になる場合（NAS 等）:** Docker デーモンへの接続に root 権限が必要で、かつ `make` が sudo の `PATH` に含まれていない環境では、以下のように現在の `PATH` を引き継いで実行してください。
 >
 > ```bash
 > sudo env "PATH=$PATH" make up
@@ -97,6 +105,7 @@ make logs N=1                     # ワールド1 のログを表示
 make ps                           # 全コンテナの状態を表示
 make backup                       # 今すぐ手動バックアップ
 make add PORT=19134               # 新しいワールドを追加
+make dirs                         # マウント先ディレクトリを作成（up 時に自動実行）
 ```
 
 > **設定ファイルを更新したときは再ビルドが必要:** `property-definitions.json` / `entrypoint.sh` / `Dockerfile` はビルド時にイメージへ COPY されるため、これらの変更（新バージョン対応の取り込みなど）を反映するにはイメージの再ビルドが必要です。
@@ -108,6 +117,50 @@ make add PORT=19134               # 新しいワールドを追加
 > ```
 >
 > なお **Minecraft サーバーバイナリ自体は起動時に自動更新**されるため、バイナリのバージョンアップだけであれば再ビルドは不要です（再ビルドが必要なのは上記リポジトリ側ファイルを変更した場合）。
+
+---
+
+## トラブルシューティング
+
+### ログやワールドデータが作られない / サーバーバイナリを毎回ダウンロードし直す
+
+コンテナは `PUID`（既定 1000）のユーザーで動くため、ホスト側ディレクトリがそのユーザーで書き込めないと、ログもワールドデータも保存できません。サーバーバイナリも保存できず毎回ダウンロードし直しになります。
+
+**症状の確認:**
+
+```bash
+docker logs --tail 30 minecraft-edu-world1     # Permission denied が出ていないか
+ls -ld worlds/world1 logs/world1 server        # 所有者が root になっていないか
+docker exec minecraft-edu-world1 id            # コンテナ実行ユーザーの UID
+```
+
+**対処:** 所有者をコンテナ実行ユーザー（`.env` の `PUID`/`PGID`、既定 1000）に合わせます。
+
+```bash
+make down
+sudo chown -R 1000:1000 worlds sessions logs chat_logs server
+make up
+```
+
+> **`sudo make up` では解決しません。** `sudo` が影響するのは docker クライアントの実行権限までで、コンテナ内のプロセスは常に `PUID` のユーザーとして動作するためです。
+
+この問題は、`worlds/` などが存在しない状態で `docker compose up` すると **Docker デーモン（root）がマウント元ディレクトリを root 所有で作成してしまう**ために起きます。現在は `make up` / `restart` / `build` が実行前に `make dirs` でディレクトリを作成するため、新規環境では発生しません。
+
+なお、この問題が出るのは Linux ホストのみです。Docker Desktop（Windows / macOS）は VM 経由のバインドマウントが UID を無視し、NAS も共有フォルダのパーミッションが緩いため表面化しません。
+
+### 既存環境を更新した場合（UID 999 → PUID）
+
+以前のバージョンはコンテナ実行ユーザーが UID 999 固定でした。更新後は `.env` の `PUID`（既定 1000）に変わるため、一度だけ所有者を移し替えてイメージを再ビルドしてください。
+
+```bash
+make down
+sudo chown -R $(id -u):$(id -g) worlds sessions logs chat_logs server
+# .env に PUID / PGID を追記（id -u / id -g の値。1000 なら省略可）
+make build
+make up
+```
+
+所有者がホストの自分のユーザーになるため、以降はビヘイビアパックの配置やワールドデータのバックアップに `sudo` が不要になります。
 
 ---
 

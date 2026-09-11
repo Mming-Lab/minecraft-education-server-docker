@@ -25,18 +25,28 @@ ENV LANG=C.UTF-8
 
 WORKDIR /minecraft
 
-# 非rootユーザーの作成
-RUN groupadd -r minecraft && useradd -r -g minecraft -d /minecraft minecraft && \
-    chown -R minecraft:minecraft /minecraft
+# 実行ユーザーの UID/GID（ホスト側のマウント先と揃えるため可変にする）
+# 既定は 1000（Linux デスクトップの最初のユーザー）。変更する場合は .env の
+# PUID / PGID を設定してイメージを再ビルドする。
+ARG PUID=1000
+ARG PGID=1000
+
+# 非rootユーザーの作成（同じ UID/GID が既に存在する場合はそれを再利用する）
+RUN set -eux; \
+    if ! getent group "${PGID}" >/dev/null; then groupadd -g "${PGID}" minecraft; fi; \
+    if ! getent passwd "${PUID}" >/dev/null; then \
+        useradd -u "${PUID}" -g "${PGID}" -d /minecraft -M -s /usr/sbin/nologin minecraft; \
+    fi; \
+    chown -R "${PUID}:${PGID}" /minecraft
 
 # 設定定義・エントリーポイント・ヘルスチェックスクリプト
-COPY --chown=minecraft:minecraft ./property-definitions.json ./entrypoint.sh ./healthcheck.sh /minecraft/
+COPY --chown=${PUID}:${PGID} ./property-definitions.json ./entrypoint.sh ./healthcheck.sh /minecraft/
 # Windows環境での改行コード問題を防止（CRLF→LF変換）
 RUN sed -i 's/\r$//' /minecraft/entrypoint.sh /minecraft/healthcheck.sh && \
     chmod +x /minecraft/entrypoint.sh /minecraft/healthcheck.sh
 
-# 非rootで実行
-USER minecraft
+# 非rootで実行（ホストのマウント先と同じ UID/GID）
+USER ${PUID}:${PGID}
 
 # ポート設定 (IPv4: 19132, IPv6: 19133)
 EXPOSE 19132/udp 19133/udp

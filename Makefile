@@ -19,6 +19,8 @@
 #   make backup                      # 今すぐ手動バックアップ
 #   make add PORT=19134              # 新しいワールドを追加
 #   make sync                        # テンプレート変更を既存 worldN.yml に反映（再生成）
+#   make dirs                        # マウント先ディレクトリを作成
+#                                    #（up / restart / build 実行時にも自動で走る）
 #
 # 【テンプレート（docker-compose.world{N}.yml.example）を変更したとき】
 #   docker-compose.world{N}.yml.example が唯一のテンプレート。
@@ -29,6 +31,11 @@
 #   Docker への接続に root 権限が必要で、かつ make が sudo の PATH に
 #   含まれていない環境では、現在の PATH を引き継いで実行する:
 #     sudo env "PATH=$PATH" make up
+#
+# 【ログやワールドデータが作られない場合】
+#   マウント先ディレクトリにコンテナ実行ユーザー（.env の PUID/PGID、既定 1000）が
+#   書き込めていない。対処は README の「トラブルシューティング」を参照。
+#   sudo make up で起動しても解決しない（コンテナ内は常に PUID で動くため）。
 # ================================================
 
 ifdef WORLDS
@@ -45,7 +52,7 @@ ifdef BACKUP
   _COMPOSE_FILES += -f docker-compose.backup.yml
 endif
 
-.PHONY: up down restart logs ps build add backup sync
+.PHONY: up down restart logs ps build add backup sync dirs
 
 # 既存の docker-compose.worldN.yml をテンプレートから再生成する。
 # テンプレート（docker-compose.world{N}.yml.example）を変更したら、
@@ -58,13 +65,28 @@ sync:
 	   echo "同期: $$f （テンプレートから再生成）"; \
 	 done
 
-up: sync
+# ホスト側のマウント先ディレクトリを先に作成する。
+# 存在しないまま docker compose up すると Docker デーモン（root）が作成してしまい、
+# 非 root で動くコンテナがログもワールドデータも書き込めなくなるため、
+# make 実行ユーザーの権限で先回りして作る。
+dirs:
+	@BASE=$$(sed -n 's/^VOLUMES_BASE_PATH=//p' .env 2>/dev/null | tail -1); \
+	 BASE=$${BASE:-./}; \
+	 mkdir -p "$${BASE}server"; \
+	 for f in docker-compose.world[0-9]*.yml; do \
+	   [ -e "$$f" ] || continue; \
+	   N=$$(echo "$$f" | sed 's/^docker-compose\.world\([0-9]*\)\.yml$$/\1/'); \
+	   mkdir -p "$${BASE}worlds/world$$N" "$${BASE}sessions/world$$N" \
+	            "$${BASE}logs/world$$N" "$${BASE}chat_logs/world$$N"; \
+	 done
+
+up: sync dirs
 	docker compose $(_COMPOSE_FILES) up -d
 
 down:
 	docker compose $(_COMPOSE_FILES) down
 
-restart: sync
+restart: sync dirs
 	docker compose $(_COMPOSE_FILES) restart
 
 logs:
@@ -76,7 +98,7 @@ endif
 ps:
 	docker compose $(_COMPOSE_FILES) ps
 
-build: sync
+build: sync dirs
 	docker compose $(_COMPOSE_FILES) build
 
 backup:
