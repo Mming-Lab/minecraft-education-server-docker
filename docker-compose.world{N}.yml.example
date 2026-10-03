@@ -17,13 +17,20 @@ services:
     container_name: minecraft-edu-world{N}
     hostname: mcedu-world{N}
     ports:
+      # raknet: このUDPポートで直接待ち受ける
+      # nethernet: 同じ番号を TCP（HTTP シグナリング）と UDP（ゲーム通信）の両方で使う
+      #   ※ TCP と UDP はポート空間が別なので衝突しない。raknet 時に TCP を
+      #      公開していても実害はないため、条件分岐せず両方公開する
       - "${SERVER_PORT_WORLD_{N}}:${SERVER_PORT_WORLD_{N}}/udp"
+      - "${SERVER_PORT_WORLD_{N}}:${SERVER_PORT_WORLD_{N}}/tcp"
     environment:
       SERVER_PUBLIC_IP_LAN: ${SERVER_PUBLIC_IP_LAN}
       SERVER_PUBLIC_IP_WAN: ${SERVER_PUBLIC_IP_WAN}
       SERVER_NETWORK: ${SERVER_NETWORK_WORLD_{N}:-${SERVER_NETWORK_COMMON:-lan}}
       SERVER_PORT: ${SERVER_PORT_WORLD_{N}}
       TRANSPORT: ${TRANSPORT_WORLD_{N}:-${TRANSPORT_COMMON:-raknet}}
+      # 未指定なら entrypoint が nethernet 時のみ自動生成する（raknet では無視される）
+      SERVER_UDP_PORTS: ${SERVER_UDP_PORTS_WORLD_{N}:-${SERVER_UDP_PORTS_COMMON:-}}
       LEVEL_NAME: ${LEVEL_NAME_WORLD_{N}:-${LEVEL_NAME_COMMON:-Bedrock level}}
       GAMEMODE: ${GAMEMODE_WORLD_{N}:-${GAMEMODE_COMMON:-creative}}
       DIFFICULTY: ${DIFFICULTY_WORLD_{N}:-${DIFFICULTY_COMMON:-easy}}

@@ -207,6 +207,36 @@ export SERVER_PUBLIC_IP
 echo "公開アドレス: server-public-ip=${SERVER_PUBLIC_IP} (network=${SERVER_NETWORK})"
 
 # ================================================
+# NetherNet（transport=nethernet）用の UDP ポート設定
+# ================================================
+# 公式 how-to（bedrock_server_how_to.html）より:
+#   raknet   … server-port を UDP で直接待ち受ける（従来方式）
+#   nethernet… server-port は HTTP シグナリング用の「TCP」デュアルスタックソケット。
+#              ゲーム通信はクライアントごとにネゴシエートされる UDP で流れ、
+#              既定では OS のエフェメラルポートから確保される。
+# エフェメラルのままでは Docker でポートを公開できないため、server-udp-ports で
+# 内部ポートを固定し、クライアントへ広告する外部アドレス／ポートも宣言する。
+#   書式: [ip:]external[-external]:internal[-internal]
+# raknet のときは無視されるプロパティなので、混乱を避けるため一切書き込まない。
+TRANSPORT="${TRANSPORT:-raknet}"
+if [ "$TRANSPORT" = "nethernet" ]; then
+    # ユーザーが明示指定していればそれを優先。未指定なら server-port と同じ番号を使う
+    # （TCP と UDP はポート空間が別なので衝突せず、ワールドごとの新規採番も不要）
+    if [ -z "${SERVER_UDP_PORTS:-}" ]; then
+        SERVER_UDP_PORTS="${SERVER_PUBLIC_IP}:${SERVER_PORT}:${SERVER_PORT}"
+    fi
+    # 補足: server-udp-ports はカンマ区切りで LAN/WAN 両方のアドレスを広告できるが、
+    # クライアントはまず server-public-ip:server-port へシグナリング接続する必要があり、
+    # その宛先は1つしか持てない。データ経路だけ増やしても「校内は LAN・校外は WAN」の
+    # 両立にはならないため、LAN/WAN の切り替えは SERVER_NETWORK で従来どおり行う。
+    export SERVER_UDP_PORTS
+    echo "NetherNet: シグナリング=${SERVER_PORT}/tcp, server-udp-ports=${SERVER_UDP_PORTS}"
+else
+    # raknet では無視されるプロパティなので書き込まない
+    unset SERVER_UDP_PORTS
+fi
+
+# ================================================
 # 環境変数からserver.propertiesの値を動的に更新
 # property-definitions.json に基づいてループ処理
 # ================================================
@@ -215,7 +245,12 @@ if [ -f "server.properties" ] && [ -f "$PROP_DEFS" ]; then
     jq -r 'to_entries[] | "\(.key) \(.value.env)"' "$PROP_DEFS" | while read -r prop_name env_name; do
         env_value="${!env_name}"
         if [ -n "$env_value" ]; then
-            sed -i "s|^${prop_name}=.*|${prop_name}=${env_value}|" server.properties
+            if grep -q "^${prop_name}=" server.properties; then
+                sed -i "s|^${prop_name}=.*|${prop_name}=${env_value}|" server.properties
+            else
+                # 既定でコメントアウトされているプロパティ（server-udp-ports 等）は追記する
+                echo "${prop_name}=${env_value}" >> server.properties
+            fi
         fi
     done
 fi
