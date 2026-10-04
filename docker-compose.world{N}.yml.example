@@ -18,18 +18,26 @@ services:
     hostname: mcedu-world{N}
     ports:
       # raknet: このUDPポートで直接待ち受ける
-      # nethernet: 同じ番号を TCP（HTTP シグナリング）と UDP（ゲーム通信）の両方で使う
-      #   ※ TCP と UDP はポート空間が別なので衝突しない。raknet 時に TCP を
+      # nethernet: この番号は TCP（HTTP シグナリング）専用になる
+      #   ※ TCP と UDP はポート空間が別なので衝突しない。使わない側を
       #      公開していても実害はないため、条件分岐せず両方公開する
       - "${SERVER_PORT_WORLD_{N}}:${SERVER_PORT_WORLD_{N}}/udp"
       - "${SERVER_PORT_WORLD_{N}}:${SERVER_PORT_WORLD_{N}}/tcp"
+      # nethernet のゲーム通信用 UDP 範囲。NetherNet は参加者1人につき UDP ポートを
+      # 1つ確保するため、同時接続数ぶんの範囲が必要（make add が .env に自動採番する）。
+      # 末尾にマーカーの付いた次の1行は transport=nethernet のワールドにだけ
+      # make sync が出力する（raknet のワールドでは行ごと削除される）。
+      - "${SERVER_UDP_RANGE_WORLD_{N}}:${SERVER_UDP_RANGE_WORLD_{N}}/udp"  #@nethernet
     environment:
       SERVER_PUBLIC_IP_LAN: ${SERVER_PUBLIC_IP_LAN}
       SERVER_PUBLIC_IP_WAN: ${SERVER_PUBLIC_IP_WAN}
       SERVER_NETWORK: ${SERVER_NETWORK_WORLD_{N}:-${SERVER_NETWORK_COMMON:-lan}}
       SERVER_PORT: ${SERVER_PORT_WORLD_{N}}
       TRANSPORT: ${TRANSPORT_WORLD_{N}:-${TRANSPORT_COMMON:-raknet}}
-      # 未指定なら entrypoint が nethernet 時のみ自動生成する（raknet では無視される）
+      # nethernet のゲーム通信用 UDP 範囲（make add が .env に採番）。
+      # entrypoint がこれを server-udp-ports に展開する。raknet では無視される
+      SERVER_UDP_RANGE: ${SERVER_UDP_RANGE_WORLD_{N}:-}
+      # server-udp-ports を直接指定したい特殊構成用の上書き（通常は空のまま）
       SERVER_UDP_PORTS: ${SERVER_UDP_PORTS_WORLD_{N}:-${SERVER_UDP_PORTS_COMMON:-}}
       LEVEL_NAME: ${LEVEL_NAME_WORLD_{N}:-${LEVEL_NAME_COMMON:-Bedrock level}}
       GAMEMODE: ${GAMEMODE_WORLD_{N}:-${GAMEMODE_COMMON:-creative}}

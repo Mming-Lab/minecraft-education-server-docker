@@ -214,16 +214,57 @@ echo "公開アドレス: server-public-ip=${SERVER_PUBLIC_IP} (network=${SERVER
 #   nethernet… server-port は HTTP シグナリング用の「TCP」デュアルスタックソケット。
 #              ゲーム通信はクライアントごとにネゴシエートされる UDP で流れ、
 #              既定では OS のエフェメラルポートから確保される。
-# エフェメラルのままでは Docker でポートを公開できないため、server-udp-ports で
-# 内部ポートを固定し、クライアントへ広告する外部アドレス／ポートも宣言する。
+#
+# 【重要】NetherNet は「参加したプレイヤー1人につき UDP ポート1つ」を確保する。
+# プレイヤーが自宅で世界をホストする P2P 実装をそのまま流用しているためで、
+# server-udp-ports に単一ポートを書くと内部の min=max となり、同時1接続しか
+# 受け付けられなくなる（1人目は入れるので、2人目が入れないまで気づけない）。
+# したがって必ず「同時接続数ぶんの範囲」を指定する。
 #   書式: [ip:]external[-external]:internal[-internal]
 # raknet のときは無視されるプロパティなので、混乱を避けるため一切書き込まない。
 TRANSPORT="${TRANSPORT:-raknet}"
 if [ "$TRANSPORT" = "nethernet" ]; then
-    # ユーザーが明示指定していればそれを優先。未指定なら server-port と同じ番号を使う
-    # （TCP と UDP はポート空間が別なので衝突せず、ワールドごとの新規採番も不要）
-    if [ -z "${SERVER_UDP_PORTS:-}" ]; then
-        SERVER_UDP_PORTS="${SERVER_PUBLIC_IP}:${SERVER_PORT}:${SERVER_PORT}"
+    if [ -n "${SERVER_UDP_PORTS:-}" ]; then
+        # .env で明示指定された場合はそのまま使う（NAT で外部ポートを付け替える等の
+        # 特殊構成向け）。本数が足りないと静かに接続不能になるため検査して警告する。
+        _udp_count=0
+        _old_ifs="$IFS"
+        IFS=','
+        for _entry in $SERVER_UDP_PORTS; do
+            # 内部側は必ず最後の ':' 区切りフィールド（IPv6 リテラル表記でも同じ）
+            _internal="${_entry##*:}"
+            case "$_internal" in
+                *-*)
+                    _udp_count=$((_udp_count + ${_internal##*-} - ${_internal%%-*} + 1))
+                    ;;
+                *)
+                    _udp_count=$((_udp_count + 1))
+                    ;;
+            esac
+        done
+        IFS="$_old_ifs"
+        if [ "$_udp_count" -le 1 ]; then
+            echo "警告: SERVER_UDP_PORTS の内部ポートが1つしかありません (${SERVER_UDP_PORTS})"
+            echo "      NetherNet は接続ごとに UDP ポートを1つ使うため、この設定では"
+            echo "      同時1接続しか参加できません。範囲指定に変更してください"
+        elif [ "$_udp_count" -lt "${MAX_PLAYERS:-0}" ]; then
+            echo "警告: SERVER_UDP_PORTS の内部ポート数 (${_udp_count}) が max-players (${MAX_PLAYERS}) 未満です"
+            echo "      同時接続が ${_udp_count} 人を超えると参加できなくなる可能性があります"
+        fi
+    elif [ -n "${SERVER_UDP_RANGE:-}" ]; then
+        # 通常の経路。make add が .env に採番した範囲から組み立てる。
+        # compose が同じ範囲をホスト側へ公開しているので、内部＝外部で対応させる。
+        SERVER_UDP_PORTS="${SERVER_PUBLIC_IP}:${SERVER_UDP_RANGE}:${SERVER_UDP_RANGE}"
+    else
+        echo "エラー: transport=nethernet ですが、ゲーム通信用の UDP ポート範囲が未設定です" >&2
+        echo "      NetherNet は接続ごとに UDP ポートを1つ消費するため、範囲の確保が必須です" >&2
+        echo "      （単一ポートで起動すると同時1接続に制限されるため、ここで停止します）" >&2
+        echo "" >&2
+        echo "      ホスト側で割り当てを確認し、.env に追記してください:" >&2
+        echo "        make ports       # 現在の割り当てと空きブロックを表示" >&2
+        echo "        # .env に SERVER_UDP_RANGE_WORLD_<N>=<PORT+1>-<PORT+99> の形式で追記" >&2
+        echo "        make up          # compose 側の公開ポートも再生成される" >&2
+        exit 1
     fi
     # 補足: server-udp-ports はカンマ区切りで LAN/WAN 両方のアドレスを広告できるが、
     # クライアントはまず server-public-ip:server-port へシグナリング接続する必要があり、
