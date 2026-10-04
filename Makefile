@@ -194,7 +194,6 @@ check-ports:
 	   T=$${T:-raknet}; \
 	   R=$$(_env "SERVER_UDP_RANGE_WORLD_$$N"); \
 	   O=$$(_env "SERVER_UDP_PORTS_WORLD_$$N"); \
-	   [ -n "$$O" ] || O=$$(_env SERVER_UDP_PORTS_COMMON); \
 	   if [ -z "$$P" ]; then \
 	     echo "エラー: world$$N の SERVER_PORT_WORLD_$$N が .env にありません"; \
 	     ERR=1; continue; \

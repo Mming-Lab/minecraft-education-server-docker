@@ -53,9 +53,11 @@ make add PORT=19500   # ポートを明示したい場合（100の倍数で指�
 
 ### トランスポートとポート
 
-`.env` の `TRANSPORT_COMMON` で接続方式を選べます。**デフォルトは `raknet`** で、従来どおりの動作です。
+`.env` の `TRANSPORT_COMMON` で接続方式を選べます。**`.env.example` の既定は `nethernet`** です。RakNet は将来のバージョンで削除される見込みのため、新規構築は NetherNet から始める想定にしています。既存環境で確実に動かしたい場合は `raknet` に変更してください。
 
-| | `raknet`（デフォルト） | `nethernet` |
+> **補足:** `.env` に `TRANSPORT_COMMON` の行自体が無い場合は `raknet` で動きます（compose テンプレートのフォールバック）。既存環境を更新したときに、意図せず方式が切り替わらないようにするためです。
+
+| | `raknet` | `nethernet`（`.env.example` の既定） |
 |---|---|---|
 | 方式 | 従来の Bedrock UDP トランスポート | WebRTC ベース |
 | `server-port` | **UDP** で直接待ち受け | **TCP**（HTTP シグナリング用のデュアルスタックソケット） |

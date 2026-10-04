@@ -37,8 +37,9 @@ services:
       # nethernet のゲーム通信用 UDP 範囲（make add が .env に採番）。
       # entrypoint がこれを server-udp-ports に展開する。raknet では無視される
       SERVER_UDP_RANGE: ${SERVER_UDP_RANGE_WORLD_{N}:-}
-      # server-udp-ports を直接指定したい特殊構成用の上書き（通常は空のまま）
-      SERVER_UDP_PORTS: ${SERVER_UDP_PORTS_WORLD_{N}:-${SERVER_UDP_PORTS_COMMON:-}}
+      # server-udp-ports を直接指定したい特殊構成用の上書き（通常は空のまま）。
+      # ワールドごとに別の値でなければならない設定なので _COMMON は持たない
+      SERVER_UDP_PORTS: ${SERVER_UDP_PORTS_WORLD_{N}:-}
       LEVEL_NAME: ${LEVEL_NAME_WORLD_{N}:-${LEVEL_NAME_COMMON:-Bedrock level}}
       GAMEMODE: ${GAMEMODE_WORLD_{N}:-${GAMEMODE_COMMON:-creative}}
       DIFFICULTY: ${DIFFICULTY_WORLD_{N}:-${DIFFICULTY_COMMON:-easy}}
