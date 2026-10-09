@@ -10,6 +10,9 @@ LABEL org.opencontainers.image.title="Minecraft Education Edition Dedicated Serv
       org.opencontainers.image.licenses="PolyForm-Noncommercial-1.0.0"
 
 # ランタイム + ダウンロード用パッケージ
+#   procps   … プロセス確認（entrypoint のシャットダウン処理でも使う）
+#   iproute2 … ss コマンド。nethernet は接続ごとに UDP ソケットを確保するため、
+#              実際に何本開いているかを ss -lunp で確認できるようにしておく
 RUN apt-get update && apt-get install -y \
     libcurl4 \
     openssl \
@@ -18,6 +21,7 @@ RUN apt-get update && apt-get install -y \
     jq \
     wget \
     unzip \
+    iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
 # 日本語などマルチバイト文字の stdout 出力を正しく扱うための locale 設定
