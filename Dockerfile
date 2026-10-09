@@ -52,8 +52,14 @@ RUN sed -i 's/\r$//' /minecraft/entrypoint.sh /minecraft/healthcheck.sh && \
 # 非rootで実行（ホストのマウント先と同じ UID/GID）
 USER ${PUID}:${PGID}
 
-# ポート設定 (IPv4: 19132, IPv6: 19133)
-EXPOSE 19132/udp 19133/udp
+# ポートは EXPOSE しない。
+# このイメージは1ホストで複数ワールドを動かす前提で、ワールドごとに別の
+# ポート帯（19200-19299, 19300-19399, …）を使うため、固定値を書くと必ず嘘になる。
+# 実際の公開は compose の ports で行う（docker-compose.world{N}.yml.example 参照）:
+#   raknet    … server-port を UDP で待ち受け
+#   nethernet … server-port は TCP（シグナリング）。ゲーム通信は別の UDP 範囲
+# なお EXPOSE はメタデータでしかなく、記述してもポートは公開されない
+#（docker run -P を使う場合のみ影響するが、本構成では compose で明示している）。
 
 # ヘルスチェック（起動猶予3分、30秒間隔、3回失敗でunhealthy）
 # ※ 初回起動時はダウンロード時間が必要なため、起動猶予を3分に延長
