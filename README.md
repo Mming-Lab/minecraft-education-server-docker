@@ -181,11 +181,15 @@ make dirs                         # マウント先ディレクトリを作成�
 ホストから次のように送ると、サーバーのコンソールに打ち込んだのと同じになります（結果は `docker logs` に出ます）。
 
 ```bash
-docker exec minecraft-edu-world1 sh -c '[ -p /minecraft/console.in ] && echo "list" > /minecraft/console.in'
+docker exec minecraft-edu-world<N> sh -c '[ -p /minecraft/console.in ] && echo "list" > /minecraft/console.in'
 ```
+
+（`<N>` はワールド番号。例: `minecraft-edu-world1`）
 
 - `[ -p ... ]` で FIFO があることを確かめてから書くこと（無いときに書くと普通のファイルができてしまう）
 - entrypoint が FIFO を開いたままにしているので、サーバーは入力の終わり（EOF）を受け取らず、書き込みも待たされない
+- サーバーの標準入力は FIFO なので、`docker attach` で打ち込んだ入力はサーバーに届かない（この方法で送る）
+- FIFO を作れなかったときは、ログに警告を出して従来どおり（流し込みなし）で起動する
 - オペレーター権限のコマンドがすべて通るので、`docker` を実行できる人だけが使える前提
 
 ## トラブルシューティング

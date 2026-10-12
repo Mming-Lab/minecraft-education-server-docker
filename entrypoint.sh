@@ -339,18 +339,30 @@ fi
 # コンソール入力用 FIFO
 # ================================================
 # ホストからサーバーのコンソールにコマンドを送れるようにする:
-#   docker exec minecraft-edu-world1 sh -c '[ -p /minecraft/console.in ] && echo "list" > /minecraft/console.in'
+#   docker exec minecraft-edu-world<N> sh -c '[ -p /minecraft/console.in ] && echo "list" > /minecraft/console.in'
 # このシェルが FIFO を読み書き両方で開いたままにするので、
-# サーバーは EOF を受け取らず、書き込む側も読み手を待って止まることがない
+# サーバーは EOF を受け取らず、書き込む側も読み手を待って止まることがない。
+# FIFO を作れなかったときは警告を出し、従来どおり（コマンドの流し込みなし）で起動する
 CONSOLE_FIFO="/minecraft/console.in"
-rm -f "$CONSOLE_FIFO"
-mkfifo -m 600 "$CONSOLE_FIFO"
-exec 3<>"$CONSOLE_FIFO"
+CONSOLE_READY=false
+rm -f "$CONSOLE_FIFO" 2>/dev/null || true
+if mkfifo -m 600 "$CONSOLE_FIFO" 2>/dev/null && [ -p "$CONSOLE_FIFO" ]; then
+    exec 3<>"$CONSOLE_FIFO"
+    CONSOLE_READY=true
+else
+    msg="【警告】コンソール入力用 FIFO（${CONSOLE_FIFO}）を作れませんでした。コマンドの流し込みなしで起動します"
+    echo "$msg"
+    echo "$msg" >> "$LOG_FILE"
+fi
 
 # ================================================
 # サーバー起動（ログ出力 + シグナルハンドリング）
 # ================================================
-./bedrock_server_edu <&3 2>&1 | tee -a "$LOG_FILE" 3<&- &
+if [ "$CONSOLE_READY" = true ]; then
+    ./bedrock_server_edu <&3 2>&1 | tee -a "$LOG_FILE" 3<&- &
+else
+    ./bedrock_server_edu 2>&1 | tee -a "$LOG_FILE" &
+fi
 
 sleep 1
 SERVER_PID=$(pgrep -f bedrock_server_edu)
