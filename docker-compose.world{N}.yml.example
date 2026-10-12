@@ -96,7 +96,8 @@ services:
       resources:
         limits:
           memory: 2g
-          cpus: "2"
+          # CPU の上限（.env の CPUS_WORLD_{N} / CPUS_COMMON。既定 4）
+          cpus: "${CPUS_WORLD_{N}:-${CPUS_COMMON:-4}}"
 
     labels:
       - "docker-volume-backup.stop-during-backup=true"
