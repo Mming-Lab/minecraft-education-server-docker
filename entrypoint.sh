@@ -161,7 +161,8 @@ ln -sf "${WORLD_DATA_DIR}/permissions.json" permissions.json
 ln -sf "${WORLD_DATA_DIR}/packetlimitconfig.json" packetlimitconfig.json
 
 # ゲームワールドデータへのシンボリックリンク
-ln -sf "${WORLD_DATA_DIR}/worlds" worlds
+# -n: 2回目以降の起動で、既存のリンク（ディレクトリを指す）の中にリンクを作らないようにする
+ln -sfn "${WORLD_DATA_DIR}/worlds" worlds
 
 # ホスト側パック置き場を確保（シンボリックリンクは使わない）
 # ※ サーバーバイナリが unzip 時に /minecraft/behavior_packs/ を実ディレクトリとして作成するため、
