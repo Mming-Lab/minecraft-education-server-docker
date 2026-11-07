@@ -18,9 +18,12 @@
   "default-player-permission-level": { "env": "DEFAULT_PLAYER_PERMISSION_LEVEL" },
   "texturepack-required": { "env": "TEXTUREPACK_REQUIRED" },
   "content-log-file-enabled": { "env": "CONTENT_LOG_FILE_ENABLED" },
+  "content-log-file-path": { "env": "CONTENT_LOG_FILE_PATH" },
   "disable-player-interaction": { "env": "DISABLE_PLAYER_INTERACTION" },
   "disable-custom-skins": { "env": "DISABLE_CUSTOM_SKINS" },
-  "chat-logging-enabled": { "env": "CHAT_LOGGING_ENABLED" },
+  "chat-log-file-enabled": { "env": "CHAT_LOGGING_ENABLED" },
+  "server-log-file-enabled": { "env": "SERVER_LOG_FILE_ENABLED" },
+  "server-log-file-path": { "env": "SERVER_LOG_FILE_PATH" },
   "allow-code-builder": { "env": "ALLOW_CODE_BUILDER" },
   "allow-command-blocks": { "env": "ALLOW_COMMAND_BLOCKS" }
 }

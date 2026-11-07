@@ -55,10 +55,28 @@ services:
       DEFAULT_PLAYER_PERMISSION_LEVEL: ${DEFAULT_PLAYER_PERMISSION_LEVEL_WORLD_{N}:-${DEFAULT_PLAYER_PERMISSION_LEVEL_COMMON:-member}}
       OPERATOR_XUID: ${OPERATOR_XUID_WORLD_{N}:-${OPERATOR_XUID_COMMON:-}}
       TEXTUREPACK_REQUIRED: ${TEXTUREPACK_REQUIRED_WORLD_{N}:-${TEXTUREPACK_REQUIRED_COMMON:-true}}
-      CONTENT_LOG_FILE_ENABLED: ${CONTENT_LOG_FILE_ENABLED_WORLD_{N}:-${CONTENT_LOG_FILE_ENABLED_COMMON:-false}}
+      # アドオン（ビヘイビアパック／リソースパック）の出力・警告・エラーを記録する。
+      # パックが読み込まれない・動かないときの切り分けに使うので既定で有効
+      CONTENT_LOG_FILE_ENABLED: ${CONTENT_LOG_FILE_ENABLED_WORLD_{N}:-${CONTENT_LOG_FILE_ENABLED_COMMON:-true}}
+      # その出力先（1.26.33 で追加）。サーバーの既定は content_logs/ だが
+      # そこはマウントしていないためコンテナ内に溜まる。マウント済みの logs/ に向ける。
+      # なお content log はセッション中に複数回開かれ、ファイル名に 1 からの連番が付く
+      CONTENT_LOG_FILE_PATH: ${CONTENT_LOG_FILE_PATH_WORLD_{N}:-${CONTENT_LOG_FILE_PATH_COMMON:-logs/ContentLog_<time>}}
       DISABLE_PLAYER_INTERACTION: ${DISABLE_PLAYER_INTERACTION_WORLD_{N}:-${DISABLE_PLAYER_INTERACTION_COMMON:-false}}
       DISABLE_CUSTOM_SKINS: ${DISABLE_CUSTOM_SKINS_WORLD_{N}:-${DISABLE_CUSTOM_SKINS_COMMON:-false}}
+      # チャットログ（1.26.33 で chat-logging-enabled から chat-log-file-enabled に
+      # リネームされた。環境変数名は各環境の .env を無効にしないため据え置き）。
+      # 出力先 chat-log-file-path は定義していない。Vector が /chat_logs/<world>/ という
+      # パスからワールド名を取り出しており、動かすと通知が静かに止まるため固定する
       CHAT_LOGGING_ENABLED: ${CHAT_LOGGING_ENABLED_WORLD_{N}:-${CHAT_LOGGING_ENABLED_COMMON:-true}}
+      # サーバー本体によるログのファイル出力（1.26.33 で追加。サーバーの既定は true）。
+      # ここでは false にしている。entrypoint が stdout 全体を
+      # logs/world{N}/server_<日付>.log に保存していて、そちらは Device Code 認証の
+      # 案内や entrypoint 自身の警告も拾うため情報量が多い。有効にすると同じ内容が
+      # 二重に保存されるだけになる
+      SERVER_LOG_FILE_ENABLED: ${SERVER_LOG_FILE_ENABLED_WORLD_{N}:-${SERVER_LOG_FILE_ENABLED_COMMON:-false}}
+      # 上を true にしたときの出力先（既定の server_logs/ はマウント外）
+      SERVER_LOG_FILE_PATH: ${SERVER_LOG_FILE_PATH_WORLD_{N}:-${SERVER_LOG_FILE_PATH_COMMON:-logs/ServerLog_<time>}}
       ALLOW_CODE_BUILDER: ${ALLOW_CODE_BUILDER_WORLD_{N}:-${ALLOW_CODE_BUILDER_COMMON:-true}}
       ALLOW_COMMAND_BLOCKS: ${ALLOW_COMMAND_BLOCKS_WORLD_{N}:-${ALLOW_COMMAND_BLOCKS_COMMON:-true}}
     volumes:
@@ -79,10 +97,11 @@ services:
       # ログファイル（logs/world{N}/ 配下）
       - ${VOLUMES_BASE_PATH:-./}logs/world{N}:/minecraft/logs
 
-      # チャットログ（chat-logging-enabled=true の場合に出力）
+      # チャットログ（chat-log-file-enabled=true の場合に出力）
       - ${VOLUMES_BASE_PATH:-./}chat_logs/world{N}:/minecraft/chat_logs
 
-      # 手動配置バイナリ（server/bedrock_server_edu を置くと自動ダウンロードをスキップ）
+      # サーバーバイナリ（全ワールドで共有）。コンテナ側は読むだけで、
+      # 取得と更新はホストの make update が行う（make rollback で1世代戻せる）
       - ${VOLUMES_BASE_PATH:-./}server:/minecraft/server-bin
 
     logging:

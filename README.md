@@ -330,8 +330,11 @@ worlds/world{N}/                      # ワールドデータ
 └── packetlimitconfig.json
 
 sessions/world{N}/                    # Entra 認証セッション（自動更新。失効時は再度デバイスコード認証）
-logs/world{N}/                        # サーバーログ
+logs/world{N}/                        # サーバーログ（ワールドごとに分離）
+├── server_<日付>.log                 # サーバーの全出力。Device Code 認証の案内もここ
+└── ContentLog_<時刻>N.txt            # アドオンの出力・警告・エラー（既定で有効）
 chat_logs/world{N}/                   # チャットログ（CHAT_LOGGING_ENABLED=true のとき出力）
+└── ChatLog_<時刻>.txt                # Vector の監視対象
 server/                               # サーバーバイナリ（make update が取得・更新。全ワールドで共有）
 server.bak/                           # 直前のバージョン（make rollback で戻せる）
 ```
@@ -354,7 +357,9 @@ make up NOTIFY=true
 
 ChatLog ファイル（`chat_logs/world{N}/`）を監視し、`[日時] - ` で始まる行をすべて通知します。
 
-> **前提:** ChatLog ファイルはサーバー本体の機能（`chat-logging-enabled`、1.21.133 以降）で出力されます。`.env` の `CHAT_LOGGING_ENABLED_COMMON=true`（既定値）が必要です。この設定はあとから変更できますが、反映にはサーバーの再起動が必要です。
+> **前提:** ChatLog ファイルはサーバー本体の機能で出力されます。`.env` の `CHAT_LOGGING_ENABLED_COMMON=true`（既定値）が必要です。この設定はあとから変更できますが、反映にはサーバーの再起動が必要です。
+>
+> **設定名が 1.26.33 で変わりました。** `chat-logging-enabled`（1.21.133〜1.26.32）→ **`chat-log-file-enabled`**（1.26.33 以降）。`property-definitions.json` 側のキーは追従済みですが、`.env` の変数名は `CHAT_LOGGING_ENABLED` のまま維持しています（各環境の `.env` を黙って無効にしないため）。出力先も `chat-log-file-path` で変更できるようになりましたが、既定値が従来と同じ `chat_logs/ChatLog_<time>` なので Vector の監視パスはそのまま使えます。
 
 ---
 
