@@ -28,17 +28,25 @@ trap 'shutdown_handler' SIGTERM SIGINT
 
 # ================================================
 # サーバーバイナリの準備
-# server-bin/bedrock_server_edu の有無とバージョンファイルの有無で動作が変わる:
-#   バイナリなし                        → 自動ダウンロード → server-bin/ に展開
-#   バイナリあり + .server_version なし → 手動配置モード（そのまま使用）
-#   バイナリあり + .server_version あり → 自動管理モード（リモートと比較して必要なら更新）
 # ================================================
+# バイナリの取得と更新はホスト側の `make update` が担う。コンテナ側は
+# server-bin/ に置かれているものをそのまま使うだけにしてある。
+#
+# かつてはここで aka.ms から自動ダウンロード・自動更新していたが、
+# server-bin/ は全ワールドで共有している書き込み可能マウントなので、
+# make up で複数ワールドが同時に起動すると全員が同じ「新しい」判定をして、
+# 同じファイルへ並行して unzip してしまう。あるワールドが 200MB 超の
+# バイナリをコピーしている最中に別のワールドがそれを truncate するため、
+# 壊れたバイナリで exec して起動ループに入る。バージョンが上がった瞬間に
+# しか起きないので再現しづらく、しかも一番困るタイミング（授業直前の起動）で
+# 踏むことになる。取得をホスト側の1プロセスに寄せて競合を構造的に無くした。
+#
+# バージョンを固定したいなら make update を実行しなければよい。
+# 戻したいときは make rollback（直前の1世代を server.bak/ に退避している）。
 SERVER_BIN="/minecraft/bedrock_server_edu"
 SERVER_BIN_DIR="/minecraft/server-bin"
 SHARED_BIN="${SERVER_BIN_DIR}/bedrock_server_edu"
-SERVER_ZIP="/tmp/server.zip"
 VERSION_FILE="${SERVER_BIN_DIR}/.server_version"
-DOWNLOAD_URL="https://aka.ms/downloadmee-linuxserver"
 
 apply_server_files() {
     # allowlist.json / permissions.json / packetlimitconfig.json はユーザーデータのため上書きしない
@@ -50,45 +58,28 @@ apply_server_files() {
     chmod +x "$SERVER_BIN"
 }
 
-fetch_remote_version() {
-    local headers
-    headers=$(wget --spider -S --no-cache --user-agent="Mozilla/5.0" "$DOWNLOAD_URL" 2>&1 || true)
-    local etag modified
-    etag=$(echo "$headers" | grep -i "ETag:" | tail -1 | sed 's/.*ETag: *//i' | tr -d '\r')
-    modified=$(echo "$headers" | grep -i "Last-Modified:" | tail -1 | sed 's/.*Last-Modified: *//i' | tr -d '\r')
-    echo "${etag:-$modified}"
-}
-
-download_server() {
-    wget -q --show-progress --no-cache --user-agent="Mozilla/5.0" -O "$SERVER_ZIP" "$DOWNLOAD_URL"
-    unzip -o "$SERVER_ZIP" -d "$SERVER_BIN_DIR"
-    rm -f "$SERVER_ZIP"
-    chmod +x "$SHARED_BIN"
-}
-
 if [ ! -f "$SHARED_BIN" ]; then
-    echo "サーバーバイナリが見つかりません。ダウンロードします..."
-    REMOTE_VERSION=$(fetch_remote_version)
-    download_server
-    [ -n "$REMOTE_VERSION" ] && echo "$REMOTE_VERSION" > "$VERSION_FILE"
-    echo "ダウンロードが完了しました。"
-    apply_server_files
-elif [ ! -f "$VERSION_FILE" ]; then
-    echo "手動配置バイナリを使用します。"
-    apply_server_files
-else
-    REMOTE_VERSION=$(fetch_remote_version)
-    LOCAL_VERSION=$(cat "$VERSION_FILE")
-    if [ -n "$REMOTE_VERSION" ] && [ "$REMOTE_VERSION" != "$LOCAL_VERSION" ]; then
-        echo "新しいバージョンが利用可能です。更新します..."
-        download_server
-        echo "$REMOTE_VERSION" > "$VERSION_FILE"
-        echo "更新が完了しました。"
-    else
-        echo "サーバーは最新です。"
-    fi
-    apply_server_files
+    echo "エラー: サーバーバイナリが見つかりません（${SHARED_BIN}）" >&2
+    echo "" >&2
+    echo "      バイナリの取得はホスト側で行います:" >&2
+    echo "        make update       # 最新版を取得して server/ に展開" >&2
+    echo "        make up           # 起動" >&2
+    echo "" >&2
+    echo "      すでに手元にバイナリがある場合は server/ に展開しても構いません" >&2
+    echo "      （server/bedrock_server_edu が存在すればそれを使います）" >&2
+    exit 1
 fi
+
+# どのバイナリで動いているかをログに残す。.server_version の1行目は配布元の
+# ETag なので人間には読めないが、make update が取得日時をコメント行で添える。
+if [ -f "$VERSION_FILE" ]; then
+    _fetched=$(sed -n 's/^# fetched: //p' "$VERSION_FILE" | tail -1)
+    echo "サーバーバイナリ: ${_fetched:+取得日 ${_fetched} / }$(sed -n '1p' "$VERSION_FILE")"
+else
+    echo "サーバーバイナリ: 手動配置（.server_version なし。make update の管理外です）"
+fi
+
+apply_server_files
 
 # ================================================
 # 設定値
@@ -290,7 +281,16 @@ if [ -f "server.properties" ] && [ -f "$PROP_DEFS" ]; then
             if grep -q "^${prop_name}=" server.properties; then
                 sed -i "s|^${prop_name}=.*|${prop_name}=${env_value}|" server.properties
             else
-                # 既定でコメントアウトされているプロパティ（server-udp-ports 等）は追記する
+                # 既定でコメントアウトされているプロパティ（server-udp-ports 等）は追記する。
+                # コメント行にも見当たらないキーは、サーバー側でリネームまたは削除された
+                # 可能性が高い。BDS は未知のキーを黙って無視するため、追記しても
+                # 「設定したのに効いていない」状態に静かになる。気づけるよう警告する。
+                if ! grep -q "^#[[:space:]]*${prop_name}=" server.properties; then
+                    echo "警告: server.properties に ${prop_name} の項目がありません（${env_name}=${env_value}）"
+                    echo "      サーバー側でリネームまたは削除された可能性があります。このまま追記しますが、"
+                    echo "      未知のキーは無視されるため設定は反映されません"
+                    echo "      → ホストで make props を実行し、定義ファイルとの差分を確認してください"
+                fi
                 echo "${prop_name}=${env_value}" >> server.properties
             fi
         fi

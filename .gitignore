@@ -42,5 +42,10 @@ docs/
 # サーバー招待受け入れツール（作業中・配布物）
 tooling/
 
-# サーバーモジュール
+# サーバーバイナリ（make update が取得・更新する。全ワールドで共有）
 server/
+# 直前のバージョンの退避（make update が作り、make rollback が使う）
+server.bak/
+# make update の作業中ディレクトリ（正常終了すれば残らない）
+server.new/
+server.swap/

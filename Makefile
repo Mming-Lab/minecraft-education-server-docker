@@ -25,6 +25,12 @@
 #   make dirs                        # マウント先ディレクトリを作成
 #                                    #（up / restart / build 実行時にも自動で走る）
 #
+# 【サーバーバイナリの更新】
+#   make update                      # 新しければ確認の上で取得（直前の1世代を退避）
+#   make update CHECK=1              # 新しいかどうかだけ調べる
+#   make rollback                    # 直前のバージョンに戻す
+#   make props                       # server.properties と定義ファイルの差分を表示
+#
 # 【ポートの割り当て】
 #   1ワールドが連続した100ポートの帯を占める。先頭がシグナリング、
 #   残り99本が nethernet のゲーム通信用。transport=nethernet は
@@ -87,6 +93,15 @@ export PGID
 PORT_BLOCK ?= 100
 PORT_BASE ?= 19200
 
+# サーバーバイナリの配布元。バージョン別の URL は公開されていないため、ここから
+# 取れるのは常に「最新版」だけになる。だから更新は自動化せず、make update を
+# 明示的に叩いたときだけ動かす（理由は update ターゲットのコメントを参照）。
+SERVER_URL ?= https://aka.ms/downloadmee-linuxserver
+# 展開後のバイナリがこのサイズ未満なら取得失敗とみなす（実物は 200MB 超）。
+# 配布元が障害時に HTML のエラーページを 200 で返すことがあり、それをバイナリとして
+# 配置してしまうと起動ループになるため検査する。
+SERVER_MIN_SIZE ?= 50000000
+
 # 次に使えるポート。既存のシグナリングポートと UDP 範囲の終端から、
 # どちらも跨がない次の100境界を求める（ワールドが無ければ PORT_BASE）。
 # make add がポート省略時に使い、make ports が提案値として表示する。
@@ -99,7 +114,8 @@ else
   _PORT = $(_NEXT_PORT)
 endif
 
-.PHONY: up down restart logs ps build add backup sync dirs ports check-ports
+.PHONY: up down restart logs ps build add backup sync dirs ports check-ports \
+        update rollback props check-server
 
 # 既存の docker-compose.worldN.yml をテンプレートから再生成する。
 # テンプレート（docker-compose.world{N}.yml.example）を変更したら、
@@ -131,7 +147,7 @@ sync:
 # 非 root で動くコンテナがログもワールドデータも書き込めなくなるため、
 # make 実行ユーザーの権限で先回りして作る。
 dirs:
-	@BASE=$$(sed -n 's/^VOLUMES_BASE_PATH=//p' .env 2>/dev/null | tail -1); \
+	@BASE=$$(sed -n 's/^VOLUMES_BASE_PATH=//p' .env 2>/dev/null | tr -d '\r' | tail -1); \
 	 BASE=$${BASE:-./}; \
 	 mkdir -p "$${BASE}server"; \
 	 for f in docker-compose.world[0-9]*.yml; do \
@@ -212,7 +228,7 @@ check-ports:
 	 fi; \
 	 if [ "$$COUNT" != 0 ]; then echo "ポート検査: OK（$$COUNT ワールド）"; fi
 
-up: sync check-ports dirs
+up: sync check-ports dirs check-server
 	docker compose $(_COMPOSE_FILES) up -d
 
 down:
@@ -292,3 +308,231 @@ add:
 	   echo "       書いて make up（compose の公開ポートが再生成されます）"; \
 	 fi; \
 	 echo "  → make up または sudo env \"PATH=\$$PATH\" make up で起動できます"
+
+# ================================================
+# サーバーバイナリの取得と更新
+# ================================================
+# 取得はホスト側のこのターゲットだけが行う。コンテナ側（entrypoint.sh）は
+# server/ に置かれているものをそのまま使うだけで、ダウンロードも更新もしない。
+#
+# 以前はコンテナ起動時に自動更新していたが、server/ は全ワールドで共有している
+# 書き込み可能マウントなので、make up で複数ワールドが同時に起動すると全員が
+# 同じ「新しい」判定をして同じファイルへ並行して unzip してしまう。あるワールドが
+# 200MB 超のバイナリをコピーしている最中に別のワールドがそれを truncate するため、
+# 壊れたバイナリで起動ループに入る。バージョンが上がった瞬間にしか起きないので
+# 再現しづらく、しかも一番困るタイミング（授業直前の起動）で踏むことになる。
+#
+# 更新タイミングを人が決められること自体も重要で、クライアント（MCEE アプリ）の
+# 配布時期とサーバーのバージョンがずれると参加者が全員接続できなくなりかねない。
+# バージョンを固定したいなら、単に make update を実行しなければよい。
+#
+#   make update              # 新しければ確認の上で取得（直前の1世代を server.bak/ に退避）
+#   make update CHECK=1      # 新しいかどうかだけ調べる（取得しない）
+#   make update YES=1        # 確認を省略（非対話環境から呼ぶとき）
+#   make update FORCE=1      # バージョンが同じでも取り直す
+#
+# 【ワールドデータは戻せない】
+# 新しいバージョンで一度開いたワールドは不可逆にアップグレードされ、古いサーバーでは
+# 読めなくなる。make rollback はバイナリを戻すだけなので、更新前に make backup か
+# worlds/ のコピーを取っておくこと。
+update:
+	@set -e; \
+	 BASE=$$(sed -n 's/^VOLUMES_BASE_PATH=//p' .env 2>/dev/null | tr -d '\r' | tail -1); \
+	 BASE=$${BASE:-./}; \
+	 SRV="$${BASE}server"; BAK="$${BASE}server.bak"; NEW="$${BASE}server.new"; \
+	 VER="$$SRV/.server_version"; \
+	 if command -v curl >/dev/null 2>&1; then \
+	   _head() { curl -sIL --max-time 30 -A "Mozilla/5.0" "$$1"; }; \
+	   _get() { curl -fL --progress-bar -A "Mozilla/5.0" -o "$$2" "$$1"; }; \
+	 elif command -v wget >/dev/null 2>&1; then \
+	   _head() { wget --spider -S --no-cache --timeout=30 --user-agent="Mozilla/5.0" "$$1" 2>&1; }; \
+	   _get() { wget -q --show-progress --no-cache --user-agent="Mozilla/5.0" -O "$$2" "$$1"; }; \
+	 else \
+	   echo "エラー: curl か wget が必要です"; exit 1; \
+	 fi; \
+	 mkdir -p "$$SRV"; \
+	 echo "配布元を確認しています: $(SERVER_URL)"; \
+	 H=$$(_head "$(SERVER_URL)" 2>/dev/null || true); \
+	 REMOTE=$$(echo "$$H" | grep -i '^[[:space:]]*ETag:' | tail -1 | sed 's/.*[Ee][Tt][Aa][Gg]:[[:space:]]*//' | tr -d '\r'); \
+	 if [ -z "$$REMOTE" ]; then \
+	   REMOTE=$$(echo "$$H" | grep -i '^[[:space:]]*Last-Modified:' | tail -1 | sed 's/.*[Mm]odified:[[:space:]]*//' | tr -d '\r'); \
+	 fi; \
+	 LOCAL=$$(sed -n '1p' "$$VER" 2>/dev/null | tr -d '\r'); \
+	 FETCHED=$$(sed -n 's/^# fetched: //p' "$$VER" 2>/dev/null | tail -1); \
+	 if [ -f "$$SRV/bedrock_server_edu" ]; then \
+	   echo "  手元  : $${LOCAL:-（.server_version なし＝手動配置）}$${FETCHED:+   取得日 $$FETCHED}"; \
+	 else \
+	   echo "  手元  : バイナリがありません（初回構築）"; \
+	 fi; \
+	 echo "  配布元: $${REMOTE:-（取得できませんでした）}"; \
+	 if [ -z "$$REMOTE" ]; then \
+	   echo ""; \
+	   echo "警告: 配布元のバージョン情報を取得できませんでした（ネットワークか配布元の問題）"; \
+	   if [ -f "$$SRV/bedrock_server_edu" ] && [ -z "$(FORCE)" ]; then \
+	     echo "      手元のバイナリはそのまま使えます。強制的に取り直すなら make update FORCE=1"; \
+	     exit 0; \
+	   fi; \
+	 fi; \
+	 if [ -f "$$SRV/bedrock_server_edu" ] && [ -n "$$REMOTE" ] && [ "$$REMOTE" = "$$LOCAL" ] && [ -z "$(FORCE)" ]; then \
+	   echo ""; echo "サーバーは最新です"; exit 0; \
+	 fi; \
+	 if [ -n "$(CHECK)" ]; then \
+	   echo ""; \
+	   if [ -f "$$SRV/bedrock_server_edu" ]; then \
+	     echo "更新があります（make update で取得できます）"; \
+	   else \
+	     echo "バイナリがありません（make update で取得してください）"; \
+	   fi; \
+	   exit 0; \
+	 fi; \
+	 RUNNING=$$(docker ps --filter "name=minecraft-edu-world" --format '{{.Names}}' 2>/dev/null | tr '\n' ' '); \
+	 echo ""; \
+	 if [ -n "$$RUNNING" ]; then \
+	   echo "稼働中のワールド: $$RUNNING"; \
+	   echo "  起動中のサーバーはコンテナ内にコピーされたバイナリで動いているため、"; \
+	   echo "  差し替えても落ちません。反映は次の make restart からになります"; \
+	 fi; \
+	 echo "直前のバージョンは $$BAK/ に退避します（make rollback で戻せます）"; \
+	 echo "※ ワールドデータは新バージョンで開くと不可逆にアップグレードされ、"; \
+	 echo "   古いサーバーでは読めなくなります。先に make backup を推奨します"; \
+	 if [ -z "$(YES)" ]; then \
+	   if [ ! -t 0 ]; then \
+	     echo ""; \
+	     echo "エラー: 対話端末ではないため確認できません。make update YES=1 で実行してください"; \
+	     exit 1; \
+	   fi; \
+	   printf '取得して差し替えますか? [y/N] '; read ANS; \
+	   case "$$ANS" in y|Y|yes|YES) ;; *) echo "中止しました"; exit 0;; esac; \
+	 fi; \
+	 rm -rf "$$NEW"; mkdir -p "$$NEW"; \
+	 echo "ダウンロード中..."; \
+	 _get "$(SERVER_URL)" "$$NEW/server.zip"; \
+	 unzip -q -o "$$NEW/server.zip" -d "$$NEW"; \
+	 rm -f "$$NEW/server.zip"; \
+	 if [ ! -f "$$NEW/bedrock_server_edu" ]; then \
+	   echo "エラー: 展開結果に bedrock_server_edu がありません。$$NEW/ の中身を確認してください"; \
+	   exit 1; \
+	 fi; \
+	 SZ=$$(wc -c < "$$NEW/bedrock_server_edu" | tr -d ' '); \
+	 if [ "$$SZ" -lt $(SERVER_MIN_SIZE) ]; then \
+	   echo "エラー: 取得したバイナリが小さすぎます（$$SZ バイト）"; \
+	   echo "        配布元がエラーページを返した可能性があります。$$NEW/ は残してあるので中身を確認してください"; \
+	   exit 1; \
+	 fi; \
+	 chmod +x "$$NEW/bedrock_server_edu"; \
+	 rm -rf "$$BAK"; mkdir -p "$$BAK"; \
+	 find "$$SRV" -maxdepth 1 -mindepth 1 -exec mv {} "$$BAK/" \; ; \
+	 find "$$NEW" -maxdepth 1 -mindepth 1 -exec mv {} "$$SRV/" \; ; \
+	 rmdir "$$NEW"; \
+	 { echo "$${REMOTE:-(unknown)}"; \
+	   echo "# fetched: $$(date '+%Y-%m-%d %H:%M:%S')"; \
+	   echo "# source: $(SERVER_URL)"; \
+	   echo "# size: $$SZ"; } > "$$VER"; \
+	 echo ""; \
+	 echo "更新しました（$$SZ バイト）"; \
+	 echo "  → 反映するには make restart（起動していなければ make up）"; \
+	 echo "  → 設定項目が増えていないかは make props で確認できます"
+
+# server/ と server.bak/ の中身を入れ替えて直前のバージョンに戻す。
+# もう一度叩けば元に戻る（捨てずに入れ替えるだけ）。
+# server/ ディレクトリ自体は mv しない。バインドマウントは inode を見ているため、
+# ディレクトリを差し替えると稼働中のコンテナが古い方を参照し続けてしまう。
+rollback:
+	@set -e; \
+	 BASE=$$(sed -n 's/^VOLUMES_BASE_PATH=//p' .env 2>/dev/null | tr -d '\r' | tail -1); \
+	 BASE=$${BASE:-./}; \
+	 SRV="$${BASE}server"; BAK="$${BASE}server.bak"; SWP="$${BASE}server.swap"; \
+	 if [ ! -f "$$BAK/bedrock_server_edu" ]; then \
+	   echo "エラー: 退避されたバイナリがありません（$$BAK/bedrock_server_edu）"; \
+	   echo "        退避は make update が作ります。まだ一度も更新していない場合は戻せません"; \
+	   exit 1; \
+	 fi; \
+	 echo "入れ替えます:"; \
+	 echo "  現在: $$(sed -n '1p' "$$SRV/.server_version" 2>/dev/null || echo '(不明)')$$(sed -n 's/^# fetched: /   取得日 /p' "$$SRV/.server_version" 2>/dev/null | tail -1)"; \
+	 echo "  退避: $$(sed -n '1p' "$$BAK/.server_version" 2>/dev/null || echo '(不明)')$$(sed -n 's/^# fetched: /   取得日 /p' "$$BAK/.server_version" 2>/dev/null | tail -1)"; \
+	 if [ -z "$(YES)" ]; then \
+	   if [ ! -t 0 ]; then \
+	     echo "エラー: 対話端末ではありません。make rollback YES=1 で実行してください"; \
+	     exit 1; \
+	   fi; \
+	   printf '戻しますか? [y/N] '; read ANS; \
+	   case "$$ANS" in y|Y|yes|YES) ;; *) echo "中止しました"; exit 0;; esac; \
+	 fi; \
+	 rm -rf "$$SWP"; mkdir -p "$$SWP"; \
+	 find "$$SRV" -maxdepth 1 -mindepth 1 -exec mv {} "$$SWP/" \; ; \
+	 find "$$BAK" -maxdepth 1 -mindepth 1 -exec mv {} "$$SRV/" \; ; \
+	 find "$$SWP" -maxdepth 1 -mindepth 1 -exec mv {} "$$BAK/" \; ; \
+	 rmdir "$$SWP"; \
+	 echo ""; \
+	 echo "戻しました（もう一度 make rollback を叩けば元に戻ります）"; \
+	 echo "  → 反映するには make restart"; \
+	 echo "  ※ ワールドデータは新しいバージョンで開いた時点でアップグレードされており、"; \
+	 echo "     古いサーバーでは読めません。必要なら worlds/ もバックアップから戻してください"
+
+# server/ にバイナリが無ければ取得する（up の前段で自動的に走る）。
+# コンテナ側は取得しない設計なので、無いまま up すると起動時にエラーで止まる。
+# 初回構築のときだけ動き、以降は何もしない（更新は make update を明示的に叩く）。
+check-server:
+	@BASE=$$(sed -n 's/^VOLUMES_BASE_PATH=//p' .env 2>/dev/null | tr -d '\r' | tail -1); \
+	 BASE=$${BASE:-./}; \
+	 if [ ! -f "$${BASE}server/bedrock_server_edu" ]; then \
+	   echo "サーバーバイナリがありません。取得します（初回のみ）"; \
+	   $(MAKE) --no-print-directory update YES=1; \
+	 fi
+
+# ================================================
+# server.properties と property-definitions.json の差分
+# ================================================
+# サーバー側で設定項目が増えても起動は壊れない。entrypoint.sh が起動ごとに
+# server/ の server.properties を /minecraft/ へ展開し直すので、新しい項目は
+# 公式の既定値で入ってくる。ただし /minecraft/server.properties は永続化して
+# いないため差分が手元に残らず、「項目が増えたこと」に気づく手がかりがない。
+# このターゲットはその差分を可視化する。
+props:
+	@set -e; \
+	 BASE=$$(sed -n 's/^VOLUMES_BASE_PATH=//p' .env 2>/dev/null | tr -d '\r' | tail -1); \
+	 BASE=$${BASE:-./}; \
+	 P="$${BASE}server/server.properties"; D=property-definitions.json; \
+	 if [ ! -f "$$P" ]; then \
+	   echo "エラー: $$P がありません。先に make update でバイナリを取得してください"; \
+	   exit 1; \
+	 fi; \
+	 T=$$(mktemp -d); trap 'rm -rf "$$T"' EXIT INT TERM; \
+	 sed -n 's/^[[:space:]]*"\([a-z0-9-]*\)"[[:space:]]*:.*/\1/p' "$$D" | LC_ALL=C sort -u > "$$T/defs"; \
+	 sed -n 's/^\([a-z0-9-]*\)=.*/\1/p' "$$P" | LC_ALL=C sort -u > "$$T/props"; \
+	 echo "server.properties: $$(wc -l < "$$T/props" | tr -d ' ') 項目   property-definitions.json: $$(wc -l < "$$T/defs" | tr -d ' ') 項目"; \
+	 echo ""; \
+	 UN=$$(LC_ALL=C comm -23 "$$T/props" "$$T/defs"); \
+	 if [ -n "$$UN" ]; then \
+	   echo "■ .env から制御できない項目（server.properties にあるが未定義）"; \
+	   for k in $$UN; do \
+	     printf '    %-54s %s\n' "$$k" "$$(sed -n 's/^'"$$k"'=/既定 /p' "$$P" | head -1)"; \
+	   done; \
+	   echo ""; \
+	   echo "  使いたいものがあれば、この3つを揃えてください"; \
+	   echo "   1. property-definitions.json に  \"<キー>\": { \"env\": \"<環境変数名>\" }  を追記"; \
+	   echo '   2. docker-compose.world{N}.yml.example の environment に  <環境変数名>: $${..._WORLD_{N}:-$${..._COMMON:-既定}}  を追記'; \
+	   echo "   3. make build（定義ファイルはイメージに COPY されるため再ビルドが必要）"; \
+	 else \
+	   echo "■ 未対応の項目はありません"; \
+	 fi; \
+	 MISS=$$(LC_ALL=C comm -13 "$$T/props" "$$T/defs"); \
+	 if [ -n "$$MISS" ]; then \
+	   echo ""; \
+	   echo "■ 定義にあるが server.properties に書かれていない項目"; \
+	   W=0; \
+	   for k in $$MISS; do \
+	     if grep -q "^#[[:space:]]*$$k=" "$$P"; then \
+	       S="既定で無効（コメント行にあり。entrypoint が必要なときだけ追記します）"; \
+	     else \
+	       S="見当たりません（リネームか削除の疑い。設定しても無視されます）"; W=1; \
+	     fi; \
+	     printf '    %-54s %s\n' "$$k" "$$S"; \
+	   done; \
+	   if [ "$$W" = 1 ]; then \
+	     echo ""; \
+	     echo "  「見当たりません」の項目は、サーバー側で名前が変わったか廃止された可能性があります。"; \
+	     echo "  BDS は未知のキーを黙って無視するため、.env で設定しても静かに効かなくなります。"; \
+	     echo "  server/bedrock_server_how_to.html で正しい名前を確認し、property-definitions.json を直してください"; \
+	   fi; \
+	 fi

@@ -1,6 +1,8 @@
 # Minecraft Education Edition Dedicated Server
 # 公式要件: Ubuntu 18.04 以降（64bit・2コア以上・RAM 1GB 以上）
-# サーバーバイナリは起動時に自動ダウンロード・更新される
+# サーバーバイナリはホスト側の server/ をバインドマウントして使う。
+# 取得と更新はホストの make update が行い、コンテナ側は一切ダウンロードしない
+#（複数ワールドが同じ server/ を共有しているため。詳細は entrypoint.sh 冒頭）
 
 FROM ubuntu:22.04
 
@@ -9,8 +11,11 @@ LABEL org.opencontainers.image.title="Minecraft Education Edition Dedicated Serv
       org.opencontainers.image.source="https://github.com/Mming-Lab/minecraft-education-server-docker" \
       org.opencontainers.image.licenses="PolyForm-Noncommercial-1.0.0"
 
-# ランタイム + ダウンロード用パッケージ
+# ランタイムパッケージ
 #   procps   … プロセス確認（entrypoint のシャットダウン処理でも使う）
+#   jq       … property-definitions.json の読み取り（server.properties への反映）
+#   wget/unzip … 通常の起動では使わない（バイナリの取得は make update がホスト側で行う）。
+#              コンテナ内から手動で復旧したいとき用に残してある
 #   iproute2 … ss コマンド。nethernet は接続ごとに UDP ソケットを確保するため、
 #              実際に何本開いているかを ss -lunp で確認できるようにしておく
 RUN apt-get update && apt-get install -y \
@@ -62,7 +67,7 @@ USER ${PUID}:${PGID}
 #（docker run -P を使う場合のみ影響するが、本構成では compose で明示している）。
 
 # ヘルスチェック（起動猶予3分、30秒間隔、3回失敗でunhealthy）
-# ※ 初回起動時はダウンロード時間が必要なため、起動猶予を3分に延長
+# ※ 初回起動時はワールド生成とバイナリの展開に時間がかかるため、起動猶予を3分に延長
 HEALTHCHECK --start-period=3m --interval=30s --timeout=10s --retries=3 \
     CMD /minecraft/healthcheck.sh
 
