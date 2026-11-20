@@ -11,7 +11,7 @@
 #   make up BACKUP=true              # バックアップサービスも一緒に起動
 #
 # 【その他】
-#   make down                        # 全ワールドを停止
+#   make down                        # 全ワールドを停止（通知・バックアップも一緒に落とす）
 #   make restart                     # 全ワールドを再起動
 #   make logs N=1                    # ワールド1 のログを表示
 #   make ps                          # 全コンテナの状態を表示
@@ -68,6 +68,21 @@ endif
 
 ifdef BACKUP
   _COMPOSE_FILES += -f docker-compose.backup.yml
+endif
+
+# down で使うファイル。WORLDS を指定していない（＝全部落とす意図の）ときは、
+# 通知・バックアップのコンテナも一緒に落とす。
+# これらが残っていると default ネットワークが削除されず、次の up でネットワーク設定を
+# 変更できない（"has active endpoints" で失敗し、ワールドが1つも起動しなくなる）。
+# 固定 IP やサブネットを変えたあとに踏むため、停止漏れが起きないようにしておく。
+_DOWN_FILES := $(_COMPOSE_FILES)
+ifndef WORLDS
+  ifndef NOTIFY
+    _DOWN_FILES += -f docker-compose.notify.yml
+  endif
+  ifndef BACKUP
+    _DOWN_FILES += -f docker-compose.backup.yml
+  endif
 endif
 
 # コンテナ実行ユーザーの UID/GID。ホスト側ディレクトリの所有者と揃えるために使う。
@@ -233,7 +248,7 @@ up: sync check-ports dirs check-server
 	docker compose $(_COMPOSE_FILES) up -d
 
 down:
-	docker compose $(_COMPOSE_FILES) down
+	docker compose $(_DOWN_FILES) down
 
 restart: sync check-ports dirs
 	docker compose $(_COMPOSE_FILES) restart
@@ -556,6 +571,16 @@ props:
 # ルールの読み取りには root 権限が要るため up / restart には組み込まず任意実行にしてある
 #（毎回 sudo を要求すると、権限が無い環境で警告が出続けてノイズになる）。
 #
+# なお停止中のコンテナでは docker inspect が空文字ではなく "invalid IP" を返すことが
+# あるため、IPv4 の形をしていない値は未取得として扱う（停止しているだけのワールドを
+# 「ずれ」と誤判定し、不要な「適用」を促さないようにするため）。
+#
+# 終了コードは「対処が必要か」の2値にしている（0 = 対処不要、非0 = ずれを検出）。
+# make はレシピが失敗すると自身は常に 2 を返すため、レシピ側で 1 と 2 を分けても
+# 呼び出し側には伝わらない。そのぶん「判定不能」（権限不足・コンテナ未起動・
+# ルールの書式が想定外）は成功扱いにして運用を止めず、表示では決して
+# 「一致しています」と言わないようにしてある。
+#
 #   make check-net        # 検査する
 #   sudo make check-net   # 権限が足りないと言われた場合
 check-net:
@@ -563,8 +588,10 @@ check-net:
 	 NFT=""; \
 	 if command -v nft >/dev/null 2>&1; then \
 	   NFT=$$(command -v nft); \
-	 elif [ -x /usr/builtin/sbin/nft ]; then \
-	   NFT=/usr/builtin/sbin/nft; \
+	 else \
+	   for p in /usr/builtin/sbin/nft /usr/sbin/nft /sbin/nft /usr/local/sbin/nft; do \
+	     if [ -x "$$p" ]; then NFT="$$p"; break; fi; \
+	   done; \
 	 fi; \
 	 if [ -z "$$NFT" ]; then \
 	   echo "nft が見つかりません。この環境は検査の対象外です"; \
@@ -572,18 +599,20 @@ check-net:
 	 fi; \
 	 RULES=$$("$$NFT" list ruleset 2>/dev/null || true); \
 	 if [ -z "$$RULES" ]; then \
-	   echo "nft のルールを読み取れませんでした（root 権限が必要です）"; \
+	   echo "nft のルールを読み取れませんでした（root 権限が必要です。ルールが空の場合も同じ表示になります）"; \
 	   echo "  sudo make check-net で実行してください"; \
+	   echo "  make が sudo の PATH に無い環境では: sudo env \"PATH=$$PATH\" make check-net"; \
 	   exit 0; \
 	 fi; \
-	 BR=$$(docker network inspect "$$(basename "$$PWD" | tr 'A-Z' 'a-z' | tr -cd 'a-z0-9_-')_default" \
+	 PROJ=$$(_env COMPOSE_PROJECT_NAME); \
+	 [ -n "$$PROJ" ] || PROJ=$$(basename "$$PWD" | tr 'A-Z' 'a-z' | tr -cd 'a-z0-9_-'); \
+	 BR=$$(docker network inspect "$${PROJ}_default" \
 	        -f '{{index .Options "com.docker.network.bridge.name"}}' 2>/dev/null || true); \
 	 echo "転送ルール（DNAT）の宛先と、コンテナの内部 IP を突き合わせます"; \
 	 echo "  nft: $$NFT"; \
-	 if [ -n "$$BR" ]; then echo "  現在のブリッジ名: $$BR"; fi; \
 	 echo ""; \
 	 printf '%-9s %-8s %-16s %-16s %s\n' WORLD PORT CONTAINER_IP RULE_DNAT STATUS; \
-	 ERR=0; \
+	 ERR=0; CHECKED=0; FOUND=0; \
 	 for f in docker-compose.world[0-9]*.yml; do \
 	   [ -e "$$f" ] || continue; \
 	   N=$$(echo "$$f" | sed 's/^docker-compose\.world\([0-9]*\)\.yml$$/\1/'); \
@@ -591,15 +620,18 @@ check-net:
 	   [ -n "$$P" ] || continue; \
 	   IP=$$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' \
 	          "minecraft-edu-world$$N" 2>/dev/null | awk '{print $$1}'); \
-	   RIP=$$(echo "$$RULES" | grep -E "dport $$P( |$$)" | grep -oE 'dnat to [0-9]+(\.[0-9]+){3}' \
-	          | awk '{print $$3}' | sort -u | tr '\n' ' ' | sed 's/ $$//'); \
+	   echo "$$IP" | grep -qE '^[0-9]+(\.[0-9]+){3}$$' || IP=""; \
+	   RIP=$$(echo "$$RULES" | grep -E "dport[^a-z]*\<$$P\>" \
+	          | grep -oE 'dnat (ip6? )?to [0-9]+(\.[0-9]+){3}' \
+	          | sed 's/.* //' | sort -u | tr '\n' ' ' | sed 's/ $$//'); \
+	   [ -z "$$RIP" ] || FOUND=1; \
 	   if [ -z "$$IP" ]; then \
 	     printf '%-9s %-8s %-16s %-16s %s\n' "world$$N" "$$P" "-(stopped)" "$${RIP:--}" "-"; \
 	     continue; \
 	   fi; \
+	   CHECKED=$$((CHECKED + 1)); \
 	   if [ -z "$$RIP" ]; then \
-	     printf '%-9s %-8s %-16s %-16s %s\n' "world$$N" "$$P" "$$IP" "-(none)" "要適用"; \
-	     ERR=1; \
+	     printf '%-9s %-8s %-16s %-16s %s\n' "world$$N" "$$P" "$$IP" "-(none)" "?"; \
 	   elif [ "$$RIP" = "$$IP" ]; then \
 	     printf '%-9s %-8s %-16s %-16s %s\n' "world$$N" "$$P" "$$IP" "$$RIP" "OK"; \
 	   else \
@@ -608,16 +640,39 @@ check-net:
 	   fi; \
 	 done; \
 	 echo ""; \
+	 if [ "$$CHECKED" = 0 ]; then \
+	   echo "判定不能: 起動しているワールドのコンテナが見つかりませんでした"; \
+	   echo "  make up で起動してから実行してください（docker に繋がらない場合も同じ表示になります）"; \
+	   exit 0; \
+	 fi; \
+	 if [ "$$FOUND" = 0 ]; then \
+	   echo "判定不能: このホストのルールから転送先（DNAT）を読み取れませんでした"; \
+	   echo "  ルールの書式がこの検査の想定と違う可能性があります。目視で確認してください:"; \
+	   echo "    sudo $$NFT list ruleset | grep -iE 'dnat|dport'"; \
+	   echo "  ホスト側が独自管理していない環境（通常の Linux）では、この表示で問題ありません"; \
+	   exit 0; \
+	 fi; \
+	 if [ -n "$$BR" ]; then \
+	   if echo "$$RULES" | grep -qE "(iifname|oifname|iif|oif) +\"?$$BR\"?"; then \
+	     echo "ブリッジ名: $$BR（ルールにも現れています）"; \
+	   else \
+	     echo "ブリッジ名: $$BR"; \
+	     echo "警告: このブリッジ名がホストのルールに見当たりません。"; \
+	     echo "      外向き通信が古いルールで止められ、サーバーが起動直後に停止する場合があります"; \
+	     ERR=1; \
+	   fi; \
+	 fi; \
 	 if [ "$$ERR" != 0 ]; then \
-	   echo "警告: 転送ルールがコンテナの内部 IP と一致していません。"; \
+	   echo ""; \
+	   echo "警告: ホストの転送ルールが現在のコンテナと一致していません。"; \
 	   echo "      この状態だと、同じポートへの接続が通ったり拒否されたり、"; \
 	   echo "      別のワールドに届いたりします。次の順番で直してください:"; \
 	   echo ""; \
 	   echo "        1. ホストの管理画面でファイアウォール設定を適用する（ルールが作り直される）"; \
 	   echo "        2. make restart"; \
 	   echo ""; \
-	   echo "      ※ 順番が逆だとサーバーが Microsoft のサービスへ接続できず、"; \
-	   echo "        起動直後に停止します（コンテナは残るので気づきにくい）"; \
+	   echo "      ※ 順番が逆だとサーバーが外部サービスへ接続できず、起動直後に停止します"; \
+	   echo "        （コンテナは残るので気づきにくい）"; \
 	   exit 1; \
 	 fi; \
-	 echo "転送ルールは一致しています"
+	 echo "転送ルールは一致しています（$$CHECKED ワールドを検査）"
