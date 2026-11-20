@@ -151,8 +151,9 @@ networks:
       # ブリッジ名も固定する。既定の br-<id> は作り直すたびに変わるため、
       # 古い FORWARD ルールでは新しいブリッジからの外向き通信が通らない。
       # そうなるとサーバーが起動時に Microsoft のサービスへ接続できず
-      # 「Could not connect to Minecraft services」で停止する。
-      # このときプロセスは終了しているのにコンテナが healthy のままになりうる
+      # 「Could not connect to Minecraft services」→「Server stop requested」で
+      # サービスを止める。このときプロセスは残るため、プロセスの生存だけを見る
+      # ヘルスチェックでは healthy のままになる
       #（healthcheck.sh が待ち受けソケットまで見るようにしてある）
       com.docker.network.bridge.name: ${DOCKER_BRIDGE_NAME:-br-mcedu}
     ipam:
