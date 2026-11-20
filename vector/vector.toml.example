@@ -16,6 +16,64 @@ data_dir = "/var/lib/vector"
 fingerprint.strategy = "device_and_inode"
 
 # ================================================
+# ソース: サーバーログ（停止と起動の検知）
+# ================================================
+# ヘルスチェックが unhealthy を返しても Docker は再起動しない（restart ポリシーは
+# ヘルス状態では発火しない）。そのため、サーバーが止まっても誰も気づかないことがある。
+# ログを見て通知する。
+[sources.server_log_files]
+type = "file"
+include = ["/logs/**/server_*.log"]
+read_from = "end"
+data_dir = "/var/lib/vector"
+fingerprint.strategy = "device_and_inode"
+
+# ================================================
+# 変換: サーバーの状態変化を拾う
+# ================================================
+# 【重要】サーバーログには サーバー ID・テナント ID・デバイスコード・IP アドレスが
+# 含まれる。ntfy の公開トピックなどに流れると外部から見えてしまうため、
+# ログ行はそのまま送らず「何が起きたか」だけを固定文で通知する。
+# なおタイトルは ntfy の HTTP ヘッダー（Title）に入るため ASCII にしている
+#（ヘッダーに非 ASCII を入れると受け手で文字化けする）。本文は UTF-8 で問題ない。
+[transforms.parse_server_events]
+type = "remap"
+inputs = ["server_log_files"]
+source = '''
+  msg = string!(.message)
+  file_path = string!(.file)
+
+  world_match = parse_regex(file_path, r'/logs/(?P<world>[^/]+)/') ?? {}
+  world = if exists(world_match.world) { to_string(world_match.world) } else { "unknown" }
+
+  .notify = false
+
+  if match(msg, r'Server stop requested') {
+    .title = "[STOP] minecraft-edu-" + world
+    .body = "サーバーが停止しました。ログを確認してください"
+    .notify = true
+  } else if match(msg, r'Could not connect to Minecraft services') {
+    .title = "[OFFLINE] minecraft-edu-" + world
+    .body = "Microsoft のサービスへ接続できませんでした。ホスト側の転送ルールを確認してください（sudo make check-net）"
+    .notify = true
+  } else if match(msg, r'successfully hosted in tenant') {
+    .title = "[UP] minecraft-edu-" + world
+    .body = "サーバーが起動し、参加できる状態になりました"
+    .notify = true
+  }
+'''
+
+# 通知対象のみ通過
+[transforms.filter_server_notify]
+type = "filter"
+inputs = ["parse_server_events"]
+condition = '.notify == true'
+
+# 補足: "Could not contact Services to fetch joiners" のような一時的なサービス断は
+# 継続中に何十行も出るため、ここでは拾っていない（通知が埋もれるため）。
+# 必要なら上の remap に追加するが、同じ内容が連続するので throttle の併用を推奨。
+
+# ================================================
 # 変換: [日時] - で始まる行のみ通知対象に
 # ================================================
 [transforms.parse_chat_events]
@@ -43,9 +101,10 @@ inputs = ["parse_chat_events"]
 condition = '.notify == true'
 
 # ntfy 用: .message に本文をセット（raw_message codec で送信するため）
+# チャットとサーバーの状態変化の両方を流す
 [transforms.format_ntfy]
 type = "remap"
-inputs = ["filter_notify"]
+inputs = ["filter_notify", "filter_server_notify"]
 source = '''
   .ntfy_title = .title
   .message = .body
@@ -54,6 +113,12 @@ source = '''
 # LINE 対象フィルター（通知したいワールドを指定）
 # 複数ワールドに通知する場合: condition = 'includes(["minecraft-edu-world1", "minecraft-edu-world2"], .title)'
 # LINE 通知が不要な場合はこのフィルターと format_apprise、sinks.apprise を削除してください
+#
+# ここはチャットだけを対象にしている（inputs が filter_notify のみ）。
+# サーバーの停止・起動も LINE に流すなら inputs に "filter_server_notify" を足し、
+# condition をタイトルの前方一致にする（サーバー側のタイトルは「【停止】...」のように
+# 接頭辞が付くため、完全一致では拾えない）:
+#   condition = 'ends_with(string!(.title), "minecraft-edu-world1")'
 [transforms.filter_line]
 type = "filter"
 inputs = ["filter_notify"]
