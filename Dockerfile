@@ -67,7 +67,14 @@ USER ${PUID}:${PGID}
 #（docker run -P を使う場合のみ影響するが、本構成では compose で明示している）。
 
 # ヘルスチェック（起動猶予3分、30秒間隔、3回失敗でunhealthy）
-# ※ 初回起動時はワールド生成とバイナリの展開に時間がかかるため、起動猶予を3分に延長
+# healthcheck.sh はプロセスの生存だけでなく、transport に応じた待ち受けソケットも見る。
+# サーバーが Microsoft のサービスへ接続できず停止したときに healthy のまま残らない
+# ようにするため（README の「ASUSTOR NAS：コンテナを作り直した後に接続できない」）。
+#
+# ※ 初回起動時はワールド生成とバイナリの展開に時間がかかるため起動猶予を3分にしている。
+#   Device Code 認証が済むまで待ち受けが始まらない場合、その間は unhealthy になる
+#   （認証は人の操作待ちなので、猶予を伸ばしても解決しない）。unhealthy でも
+#   restart ポリシーは作動せず、healthy を待つ depends_on も無いので起動は妨げない
 HEALTHCHECK --start-period=3m --interval=30s --timeout=10s --retries=3 \
     CMD /minecraft/healthcheck.sh
 
