@@ -22,6 +22,7 @@
 #   make sync                        # テンプレート変更を既存 worldN.yml に反映（再生成）
 #   make ports                       # ポート割り当てと次に使えるポートを表示
 #   make check-ports                 # ポート重複・UDP 範囲の未設定を検査
+#   make check-net                   # 転送ルールと内部 IP のずれを検査（ASUSTOR NAS 向け）
 #   make dirs                        # マウント先ディレクトリを作成
 #                                    #（up / restart / build 実行時にも自動で走る）
 #
@@ -115,7 +116,7 @@ else
 endif
 
 .PHONY: up down restart logs ps build add backup sync dirs ports check-ports \
-        update rollback props check-server
+        update rollback props check-server check-net
 
 # 既存の docker-compose.worldN.yml をテンプレートから再生成する。
 # テンプレート（docker-compose.world{N}.yml.example）を変更したら、
@@ -536,3 +537,85 @@ props:
 	     echo "  server/bedrock_server_how_to.html で正しい名前を確認し、property-definitions.json を直してください"; \
 	   fi; \
 	 fi
+
+# ================================================
+# ホスト側の転送ルールとコンテナの内部 IP のずれを検査する
+# ================================================
+# ASUSTOR NAS（ADM）は Docker が作る転送ルール（DNAT）と FORWARD ルールを自前の
+# nftables テーブルに取り込んで管理しており、コンテナやネットワークを作り直しても
+# 自動では更新しない（ADM Defender のファイアウォールをオフにしていても使われる）。
+# 更新されるのは ADM Defender → ファイアウォール → 適用 を押したときだけ。
+#
+# 固定 IP とブリッジ名（compose テンプレート）で予防してはいるが、ネットワークを
+# 作り直した直後や、固定化する前から動かしている環境ではずれが残る。ずれていると
+# 同じポートへの接続が通ったり拒否されたり、別のワールドに届いたりする。
+#
+# nft が無い環境（ASUSTOR 以外の多くの Linux、Docker Desktop）では何もせず成功する。
+# ルールの読み取りには root 権限が要るため up / restart には組み込まず任意実行にしてある
+#（毎回 sudo を要求すると、権限が無い環境で警告が出続けてノイズになる）。
+#
+#   make check-net        # 検査する
+#   sudo make check-net   # 権限が足りないと言われた場合
+check-net:
+	@_env() { sed -n 's/^'"$$1"'=//p' .env 2>/dev/null | tr -d '\r' | tail -1; }; \
+	 NFT=""; \
+	 if command -v nft >/dev/null 2>&1; then \
+	   NFT=$$(command -v nft); \
+	 elif [ -x /usr/builtin/sbin/nft ]; then \
+	   NFT=/usr/builtin/sbin/nft; \
+	 fi; \
+	 if [ -z "$$NFT" ]; then \
+	   echo "nft が見つかりません。この環境は検査の対象外です（ASUSTOR NAS 以外では不要）"; \
+	   exit 0; \
+	 fi; \
+	 RULES=$$("$$NFT" list ruleset 2>/dev/null || true); \
+	 if [ -z "$$RULES" ]; then \
+	   echo "nft のルールを読み取れませんでした（root 権限が必要です）"; \
+	   echo "  sudo make check-net で実行してください"; \
+	   exit 0; \
+	 fi; \
+	 BR=$$(docker network inspect "$$(basename "$$PWD" | tr 'A-Z' 'a-z' | tr -cd 'a-z0-9_-')_default" \
+	        -f '{{index .Options "com.docker.network.bridge.name"}}' 2>/dev/null || true); \
+	 echo "転送ルール（DNAT）の宛先と、コンテナの内部 IP を突き合わせます"; \
+	 echo "  nft: $$NFT"; \
+	 if [ -n "$$BR" ]; then echo "  現在のブリッジ名: $$BR"; fi; \
+	 echo ""; \
+	 printf '%-9s %-8s %-16s %-16s %s\n' WORLD PORT CONTAINER_IP RULE_DNAT STATUS; \
+	 ERR=0; \
+	 for f in docker-compose.world[0-9]*.yml; do \
+	   [ -e "$$f" ] || continue; \
+	   N=$$(echo "$$f" | sed 's/^docker-compose\.world\([0-9]*\)\.yml$$/\1/'); \
+	   P=$$(_env "SERVER_PORT_WORLD_$$N"); \
+	   [ -n "$$P" ] || continue; \
+	   IP=$$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' \
+	          "minecraft-edu-world$$N" 2>/dev/null | awk '{print $$1}'); \
+	   RIP=$$(echo "$$RULES" | grep -E "dport $$P( |$$)" | grep -oE 'dnat to [0-9]+(\.[0-9]+){3}' \
+	          | awk '{print $$3}' | sort -u | tr '\n' ' ' | sed 's/ $$//'); \
+	   if [ -z "$$IP" ]; then \
+	     printf '%-9s %-8s %-16s %-16s %s\n' "world$$N" "$$P" "-(stopped)" "$${RIP:--}" "-"; \
+	     continue; \
+	   fi; \
+	   if [ -z "$$RIP" ]; then \
+	     printf '%-9s %-8s %-16s %-16s %s\n' "world$$N" "$$P" "$$IP" "-(none)" "要適用"; \
+	     ERR=1; \
+	   elif [ "$$RIP" = "$$IP" ]; then \
+	     printf '%-9s %-8s %-16s %-16s %s\n' "world$$N" "$$P" "$$IP" "$$RIP" "OK"; \
+	   else \
+	     printf '%-9s %-8s %-16s %-16s %s\n' "world$$N" "$$P" "$$IP" "$$RIP" "ずれ"; \
+	     ERR=1; \
+	   fi; \
+	 done; \
+	 echo ""; \
+	 if [ "$$ERR" != 0 ]; then \
+	   echo "警告: 転送ルールがコンテナの内部 IP と一致していません。"; \
+	   echo "      この状態だと、同じポートへの接続が通ったり拒否されたり、"; \
+	   echo "      別のワールドに届いたりします。次の順番で直してください:"; \
+	   echo ""; \
+	   echo "        1. ADM Defender → ファイアウォール → 適用 を押す（ルールが作り直される）"; \
+	   echo "        2. make restart"; \
+	   echo ""; \
+	   echo "      ※ 順番が逆だとサーバーが Microsoft のサービスへ接続できず、"; \
+	   echo "        起動直後に停止します（コンテナは残るので気づきにくい）"; \
+	   exit 1; \
+	 fi; \
+	 echo "転送ルールは一致しています"
