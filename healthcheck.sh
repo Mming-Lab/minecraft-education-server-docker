@@ -26,10 +26,18 @@ pgrep -f bedrock_server_edu > /dev/null 2>&1 || exit 1
 PORT="${SERVER_PORT:-19132}"
 TRANSPORT="${TRANSPORT:-raknet}"
 
-if [ "$TRANSPORT" = "nethernet" ]; then
-    ss -ltnH "sport = :${PORT}" 2>/dev/null | grep -q . || exit 1
-else
-    ss -lunH "sport = :${PORT}" 2>/dev/null | grep -q . || exit 1
-fi
+# 想定外の値（綴り違いなど）のときはソケット判定を行わない。
+# 見る先を誤って永久に unhealthy になるより、プロセス生存の判定にとどめる方が安全。
+case "$TRANSPORT" in
+    nethernet)
+        ss -ltnH "sport = :${PORT}" 2>/dev/null | grep -q . || exit 1
+        ;;
+    raknet)
+        ss -lunH "sport = :${PORT}" 2>/dev/null | grep -q . || exit 1
+        ;;
+    *)
+        echo "警告: TRANSPORT の値が想定外です（${TRANSPORT}）。待ち受けの確認を省略します" >&2
+        ;;
+esac
 
 exit 0
