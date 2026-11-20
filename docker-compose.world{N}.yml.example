@@ -123,3 +123,42 @@ services:
 
     restart: unless-stopped
     stop_grace_period: 30s   # シャットダウン猶予（ワールド保存完了を待つ）
+
+    # 内部 IP を固定する（第3オクテットがワールド番号）。
+    # ASUSTOR NAS（ADM）は Docker が作る転送ルール（DNAT）と FORWARD ルールを
+    # 自前の nftables テーブルに取り込んで管理しており、コンテナやネットワークを
+    # 作り直しても自動では更新しない（ADM Defender のファイアウォールをオフに
+    # していても、このテーブルは使われる）。更新されるのは ADM Defender →
+    # ファイアウォール → 適用 を押したときだけ。
+    # ネットワークに IP を任せると make down / make up のたびに内部 IP が変わり、
+    # 古いルールの転送先が別のワールドや存在しない IP を指してしまう。すると
+    # 同じポートへの接続が、通ることもあれば拒否されることも、別のワールドに
+    # 届くこともある（クライアント側には接続できない旨のエラーが出る）。
+    # 固定しておけば作り直しても同じ IP に戻るため、ルールとずれなくなる。
+    #   ワールド番号 N は 1〜254（IPv4 の1オクテットに収まる範囲）
+    networks:
+      default:
+        ipv4_address: ${DOCKER_SUBNET_PREFIX:-172.30}.{N}.10
+
+# ================================================
+# ネットワーク定義（全ワールド共通）
+# ================================================
+# make sync が各 docker-compose.worldN.yml に同じ内容を出力し、docker compose が
+# -f で重ねたときに1つの定義としてマージする（同一内容なら重複しない）。
+networks:
+  default:
+    driver_opts:
+      # ブリッジ名も固定する。既定の br-<id> は作り直すたびに変わるため、
+      # 古い FORWARD ルールでは新しいブリッジからの外向き通信が通らない。
+      # そうなるとサーバーが起動時に Microsoft のサービスへ接続できず
+      # 「Could not connect to Minecraft services」で停止する。
+      # このときプロセスは終了しているのにコンテナが healthy のままになりうる
+      #（healthcheck.sh が待ち受けソケットまで見るようにしてある）
+      com.docker.network.bridge.name: ${DOCKER_BRIDGE_NAME:-br-mcedu}
+    ipam:
+      config:
+        # ワールドの固定 IP が <prefix>.<N>.10 なので /16 であることが前提。
+        # ip_range で自動割り当てを <prefix>.0.x に閉じ込め、通知（Vector /
+        # Apprise）やバックアップのコンテナが固定 IP を先に取らないようにする
+        - subnet: ${DOCKER_SUBNET_PREFIX:-172.30}.0.0/16
+          ip_range: ${DOCKER_SUBNET_PREFIX:-172.30}.0.0/24
