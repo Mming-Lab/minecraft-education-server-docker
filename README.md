@@ -165,6 +165,7 @@ make add PORT=19500               # ポートを明示して追加（100の倍�
 make ports                        # ポート割り当てと次に使えるポートを表示
 make check-ports                  # ポート重複・UDP 範囲の未設定を検査（up 時に自動実行）
 sudo make check-net               # 転送ルールと内部 IP のずれを検査（NAS 等）
+make net                          # ワールド用ネットワークを作成（up 時に自動実行）
 make dirs                         # マウント先ディレクトリを作成（up 時に自動実行）
 
 # サーバーバイナリの更新
@@ -364,7 +365,23 @@ sudo make check-net
 
 自動割り当てを `.0.x` に閉じ込めてあるので、通知やバックアップのコンテナがワールドの固定 IP を先に取ることはありません。ワールド番号は **1〜254** の範囲で使えます。
 
-ただし**ネットワーク自体を作り直したときは、やはり「適用」が必要**です（固定しているのは IP とブリッジ名で、ルールの再生成を促すものではありません）。
+さらに、**このネットワークは compose の管理外**です。`make net`（`make up` の前に自動実行）が一度だけ作成し、compose は `external` として参照します。
+
+compose に管理させると `make down` でネットワークごと削除され、次の `make up` で作り直されます。ブリッジ名を固定していても、作り直せばインターフェース番号（ifindex）は変わるため、ホスト側のルールがインターフェース番号で書かれている場合は再びずれます。外で作っておけば `make down` でも残るので、**作り直しの機会そのものがなくなります**。
+
+```bash
+# ホスト側のルールが名前（iifname）と番号（iif）のどちらで書かれているかは、これで分かります
+sudo nft list ruleset | grep -oE '(iifname|oifname|iif|oif) [^ ]+' | sort -u
+```
+
+サブネットやブリッジ名を変えたいときだけ、ネットワークを作り直します。`make net` が設定の食い違いを検出して手順を案内します。
+
+```bash
+make down
+docker network rm mcedu-net   # .env の DOCKER_NETWORK_NAME
+make up                        # make net が新しい設定で作り直す
+# このあと管理画面でファイアウォール設定を適用し、make restart
+```
 
 **既存環境でこの設定を反映するとき**
 
@@ -380,8 +397,9 @@ make restart
 sudo make check-net   # 一致したことを確認
 ```
 
-> **`make down` は通知・バックアップのコンテナも一緒に落とします**（`WORLDS=` を指定しないとき）。これらが残っているとネットワークが削除されず、次の `make up` が
-> `network ... has active endpoints` で失敗して、**ワールドが1つも起動しません**。
+> **この移行のあとは、`make down` でネットワークが消えなくなります**（`make net` が作る external ネットワークに移るため）。つまり「適用」が必要なのは、この移行時と、サブネットやブリッジ名を変えたときだけになります。
+>
+> **`make down` は通知・バックアップのコンテナも一緒に落とします**（`WORLDS=` を指定しないとき）。移行前の（compose が管理していた）ネットワークを消すために必要です。これらが残っているとネットワークが削除されず、`network ... has active endpoints` で失敗します。
 >
 > `make build` を省くと、ヘルスチェックの改善が反映されません（`healthcheck.sh` はイメージに COPY されるため、`make up` だけでは入れ替わりません）。
 >
@@ -466,6 +484,30 @@ make up NOTIFY=true
 ```
 
 ChatLog ファイル（`chat_logs/world{N}/`）を監視し、`[日時] - ` で始まる行をすべて通知します。
+
+あわせて**サーバーログ（`logs/world{N}/`）も監視し、サーバーの状態変化を通知します**。
+
+| 通知 | 契機 |
+|---|---|
+| `[UP] minecraft-edu-worldN` | サーバーが起動し、参加できる状態になった |
+| `[STOP] minecraft-edu-worldN` | サーバーが停止した |
+| `[OFFLINE] minecraft-edu-worldN` | Microsoft のサービスへ接続できなかった |
+
+ヘルスチェックが unhealthy を返しても Docker はコンテナを再起動しません（restart ポリシーはヘルス状態では発火しません）。そのため、通知が無いとサーバーが止まったことに誰も気づかないままになります。起動の通知は、授業前の確認にも使えます。
+
+> **サーバーログの行はそのまま通知しません。** サーバーログにはサーバー ID・テナント ID・デバイスコード・IP アドレスが含まれるため、「何が起きたか」だけを固定文で送っています。通知先が公開トピック（ntfy など）の場合に備えた措置です。
+>
+> 通知のタイトルは ASCII にしています。ntfy では HTTP ヘッダー（`Title`）で送られるため、日本語を入れると受け手で文字化けします。
+>
+> `Could not contact Services to fetch joiners` のような一時的なサービス断は、継続中に何十行も出るため通知対象にしていません（通知が埋もれるため）。ログで確認してください。
+
+**既存環境では実ファイルの更新が必要です。** `vector/vector.toml` は `.gitignore` 対象なので、`git pull` しても新しい設定は入りません。差分を確認して取り込んでください。
+
+```bash
+diff vector/vector.toml vector/vector.toml.example
+# サーバーログ関連のセクションを vector.toml に取り込み、通知先 URL は自分の値を残す
+docker restart vector
+```
 
 > **前提:** ChatLog ファイルはサーバー本体の機能で出力されます。`.env` の `CHAT_LOGGING_ENABLED_COMMON=true`（既定値）が必要です。この設定はあとから変更できますが、反映にはサーバーの再起動が必要です。
 >
