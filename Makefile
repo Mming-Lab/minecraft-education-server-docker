@@ -23,6 +23,7 @@
 #   make ports                       # ポート割り当てと次に使えるポートを表示
 #   make check-ports                 # ポート重複・UDP 範囲の未設定を検査
 #   make check-net                   # 転送ルールと内部 IP のずれを検査（NAS 等）
+#   make net                         # ワールド用ネットワークを作成（up 時に自動実行）
 #   make dirs                        # マウント先ディレクトリを作成
 #                                    #（up / restart / build 実行時にも自動で走る）
 #
@@ -131,7 +132,7 @@ else
 endif
 
 .PHONY: up down restart logs ps build add backup sync dirs ports check-ports \
-        update rollback props check-server check-net
+        update rollback props check-server check-net net
 
 # 既存の docker-compose.worldN.yml をテンプレートから再生成する。
 # テンプレート（docker-compose.world{N}.yml.example）を変更したら、
@@ -244,7 +245,7 @@ check-ports:
 	 fi; \
 	 if [ "$$COUNT" != 0 ]; then echo "ポート検査: OK（$$COUNT ワールド）"; fi
 
-up: sync check-ports dirs check-server
+up: sync check-ports dirs check-server net
 	docker compose $(_COMPOSE_FILES) up -d
 
 down:
@@ -676,3 +677,58 @@ check-net:
 	   exit 1; \
 	 fi; \
 	 echo "転送ルールは一致しています（$$CHECKED ワールドを検査）"
+
+# ================================================
+# ワールド用のネットワークを作る（up の前に自動実行）
+# ================================================
+# compose に管理させず、ここで一度だけ作って external として参照する。
+#
+# compose 管理だと make down でネットワークごと消え、次の up で作り直される。
+# ブリッジ名を固定していても作り直せばインターフェース番号（ifindex）が変わるため、
+# ホスト側のルールがインターフェース番号で書かれている環境では再びずれてしまう。
+# 外で作っておけば make down でも残り、作り直しの機会そのものが無くなる。
+#
+# 既にある場合は .env の設定と食い違っていないかだけ確認する（勝手に作り直さない。
+# 作り直すとホスト側のルールとずれ、直すには管理画面での「適用」が必要になるため）。
+net:
+	@set -e; \
+	 _env() { sed -n 's/^'"$$1"'=//p' .env 2>/dev/null | tr -d '\r' | tail -1; }; \
+	 NAME=$$(_env DOCKER_NETWORK_NAME); NAME=$${NAME:-mcedu-net}; \
+	 PREFIX=$$(_env DOCKER_SUBNET_PREFIX); PREFIX=$${PREFIX:-172.30}; \
+	 BR=$$(_env DOCKER_BRIDGE_NAME); BR=$${BR:-br-mcedu}; \
+	 if ! echo "$$PREFIX" | grep -qE '^[0-9]{1,3}\.[0-9]{1,3}$$'; then \
+	   echo "エラー: DOCKER_SUBNET_PREFIX は IPv4 の最初の2オクテットで指定してください（例: 172.30）"; \
+	   echo "        今の値: $$PREFIX"; \
+	   exit 1; \
+	 fi; \
+	 if [ $${#BR} -gt 15 ]; then \
+	   echo "エラー: DOCKER_BRIDGE_NAME は15文字以内にしてください（Linux のインターフェース名の制限）"; \
+	   echo "        今の値: $$BR（$${#BR}文字）"; \
+	   exit 1; \
+	 fi; \
+	 SUBNET="$$PREFIX.0.0/16"; RANGE="$$PREFIX.0.0/24"; \
+	 if docker network inspect "$$NAME" >/dev/null 2>&1; then \
+	   CS=$$(docker network inspect "$$NAME" -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' | awk '{print $$1}'); \
+	   CB=$$(docker network inspect "$$NAME" -f '{{index .Options "com.docker.network.bridge.name"}}'); \
+	   if [ "$$CS" != "$$SUBNET" ] || [ "$$CB" != "$$BR" ]; then \
+	     echo "エラー: ネットワーク $$NAME の設定が .env と食い違っています"; \
+	     echo "          サブネット: 現在 $$CS / .env $$SUBNET"; \
+	     echo "          ブリッジ名: 現在 $$CB / .env $$BR"; \
+	     echo ""; \
+	     echo "        作り直すには、いったん全部停止してからネットワークを削除します:"; \
+	     echo "          make down"; \
+	     echo "          docker network rm $$NAME"; \
+	     echo "          make up"; \
+	     echo ""; \
+	     echo "        ※ 作り直すとホスト側の転送ルールとずれます。up のあとに"; \
+	     echo "          管理画面でファイアウォール設定を適用し、make restart してください"; \
+	     exit 1; \
+	   fi; \
+	 else \
+	   docker network create --subnet "$$SUBNET" --ip-range "$$RANGE" \
+	     -o com.docker.network.bridge.name="$$BR" "$$NAME" >/dev/null; \
+	   echo "ネットワークを作成しました: $$NAME（$$SUBNET / 自動割り当て $$RANGE / ブリッジ $$BR）"; \
+	   echo "  ※ 作成直後はホスト側の転送ルールがまだ古い状態です。ホスト側でルールを"; \
+	   echo "    独自管理している環境（NAS 等）では、管理画面でファイアウォール設定を"; \
+	   echo "    適用してから make restart してください（make check-net で確認できます）"; \
+	 fi

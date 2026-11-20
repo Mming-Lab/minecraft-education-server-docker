@@ -143,23 +143,21 @@ services:
 # ================================================
 # ネットワーク定義（全ワールド共通）
 # ================================================
-# make sync が各 docker-compose.worldN.yml に同じ内容を出力し、docker compose が
-# -f で重ねたときに1つの定義としてマージする（同一内容なら重複しない）。
+# compose には「既にあるネットワークを使う」ことだけを伝え、作成は make net が行う。
+#
+# compose に管理させると make down でネットワークごと削除され、次の up で作り直される。
+# ブリッジ名を固定していても、作り直せばインターフェース番号（ifindex）は変わるため、
+# ホスト側のルールがインターフェース番号で書かれている場合は再びずれる。
+# さらに compose の仕様では ipam.config（YAML のリスト）は複数ファイルで「追記」される
+# 扱いで、1定義にまとまるかは実装依存になる（複数の worldN.yml を -f で重ねるため）。
+#
+# 外で一度だけ作って external として参照すれば、どちらの問題も起きない。
+# make down してもネットワークは残るので、作り直しの機会そのものが無くなる。
+#
+# ネットワークの作成と設定の検証は make net（up の前に自動実行）が行う。
+# サブネットやブリッジ名を変えたいときは .env を変更したうえで、一度削除する:
+#   make down && docker network rm ${DOCKER_NETWORK_NAME:-mcedu-net} && make up
 networks:
   default:
-    driver_opts:
-      # ブリッジ名も固定する。既定の br-<id> は作り直すたびに変わるため、
-      # 古い FORWARD ルールでは新しいブリッジからの外向き通信が通らない。
-      # そうなるとサーバーが起動時に Microsoft のサービスへ接続できず
-      # 「Could not connect to Minecraft services」→「Server stop requested」で
-      # サービスを止める。このときプロセスは残るため、プロセスの生存だけを見る
-      # ヘルスチェックでは healthy のままになる
-      #（healthcheck.sh が待ち受けソケットまで見るようにしてある）
-      com.docker.network.bridge.name: ${DOCKER_BRIDGE_NAME:-br-mcedu}
-    ipam:
-      config:
-        # ワールドの固定 IP が <prefix>.<N>.10 なので /16 であることが前提。
-        # ip_range で自動割り当てを <prefix>.0.x に閉じ込め、通知（Vector /
-        # Apprise）やバックアップのコンテナが固定 IP を先に取らないようにする
-        - subnet: ${DOCKER_SUBNET_PREFIX:-172.30}.0.0/16
-          ip_range: ${DOCKER_SUBNET_PREFIX:-172.30}.0.0/24
+    name: ${DOCKER_NETWORK_NAME:-mcedu-net}
+    external: true
