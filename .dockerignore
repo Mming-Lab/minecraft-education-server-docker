@@ -13,6 +13,9 @@ logs/
 .gitignore
 
 # ドキュメント・開発ツール
+# private/ は環境固有の運用メモと認証情報。docs/ はその旧名
+# （guide/ 配下の公開ドキュメントは下の *.md で除外される）
+private/
 docs/
 *.md
 *.ipynb
