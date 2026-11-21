@@ -104,7 +104,7 @@ make up
 
 サーバーバイナリが `server/` に無ければ、`make up` が初回だけ自動で取得します（すでに手元にあるものを使いたい場合は `server/` に展開しておけばそのまま使われます）。
 
-**以降のバージョンアップは自動では行われません。**`make update` を明示的に実行したときだけ更新されます（理由と手順は [運用ガイドの「サーバーのバージョンアップ」](guide/operations.md#サーバーのバージョンアップ)）。
+**以降のバージョンアップは自動では行われません。**`make update` を明示的に実行したときだけ更新されます（理由と手順は [運用マニュアルの「サーバーのバージョンアップ」](manual/operations.md#サーバーのバージョンアップ)）。
 
 ### 4. デバイスコード認証
 
@@ -193,8 +193,8 @@ make props                        # server.properties と定義ファイルの�
 
 | ファイル | 内容 |
 |---|---|
-| [guide/operations.md](guide/operations.md) | サーバーのバージョンアップ、`server.properties` に項目が増えたときの対応、コンソール操作、通知、ディレクトリ構成 |
-| [guide/troubleshooting.md](guide/troubleshooting.md) | 接続できない、ログやワールドデータが作られない、既存環境の移行 |
+| [manual/operations.md](manual/operations.md) | サーバーのバージョンアップ、`server.properties` に項目が増えたときの対応、コンソール操作、通知、ディレクトリ構成 |
+| [manual/troubleshooting.md](manual/troubleshooting.md) | 接続できない、ログやワールドデータが作られない、既存環境の移行 |
 
 ---
 

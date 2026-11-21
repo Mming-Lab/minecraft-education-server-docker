@@ -69,7 +69,7 @@ USER ${PUID}:${PGID}
 # ヘルスチェック（起動猶予3分、30秒間隔、3回失敗でunhealthy）
 # healthcheck.sh はプロセスの生存だけでなく、transport に応じた待ち受けソケットも見る。
 # サーバーが Microsoft のサービスへ接続できず停止したときに healthy のまま残らない
-# ようにするため（guide/troubleshooting.md の「コンテナを作り直した後に接続できない」）。
+# ようにするため（manual/troubleshooting.md の「コンテナを作り直した後に接続できない」）。
 #
 # ※ 初回起動時はワールド生成とバイナリの展開に時間がかかるため起動猶予を3分にしている。
 #   Device Code 認証が済むまで待ち受けが始まらない場合、その間は unhealthy になる
