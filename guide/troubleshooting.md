@@ -1,6 +1,6 @@
 # トラブルシューティング
 
-[README に戻る](README.md) ｜ [運用](OPERATIONS.md)
+[README に戻る](../README.md) ｜ [運用](operations.md)
 
 ---
 

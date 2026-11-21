@@ -1,6 +1,6 @@
 # 運用
 
-[README に戻る](README.md) ｜ [トラブルシューティング](TROUBLESHOOTING.md)
+[README に戻る](../README.md) ｜ [トラブルシューティング](troubleshooting.md)
 
 ---
 
@@ -128,8 +128,8 @@ docker restart vector
 
 ```
 README.md                             # 概要・セットアップ・コマンド一覧
-OPERATIONS.md                         # 運用（このファイル）
-TROUBLESHOOTING.md                    # トラブルシューティング
+guide/operations.md                   # 運用（このファイル）
+guide/troubleshooting.md              # トラブルシューティング
 Makefile                              # ワールドの起動・追加コマンド
 docker-compose.world{N}.yml.example   # ワールド定義テンプレート（make add が使用）
 docker-compose.notify.yml             # 通知スタック（Vector + Apprise）

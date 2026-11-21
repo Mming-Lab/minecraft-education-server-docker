@@ -7,7 +7,7 @@
 # プロセスの有無だけ見ていると、サーバーが起動時に Microsoft のサービスへ
 # 接続できず「Could not connect to Minecraft services」→「Server stop requested」
 # で止まったあとも healthy のままになる（ホスト側のファイアウォールが古い
-# FORWARD ルールを持っていると起きる。TROUBLESHOOTING.md を参照）。
+# FORWARD ルールを持っていると起きる。guide/troubleshooting.md を参照）。
 # 待ち受けソケットまで見れば、この状態を unhealthy として検知できる。
 #
 # transport で見るソケットが変わる:
