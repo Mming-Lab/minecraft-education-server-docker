@@ -11,8 +11,10 @@
 #   make up BACKUP=true              # バックアップサービスも一緒に起動
 #
 # 【その他】
-#   make down                        # 全ワールドを停止（通知・バックアップも一緒に落とす）
+#   make stop                        # 全ワールドを停止（コンテナは残す。日常はこちら）
+#   make start                       # stop したワールドを起動
 #   make restart                     # 全ワールドを再起動
+#   make down                        # コンテナとネットワークを削除（設定変更時）
 #   make logs N=1                    # ワールド1 のログを表示
 #   make ps                          # 全コンテナの状態を表示
 #   make build                       # イメージをビルド
@@ -22,8 +24,6 @@
 #   make sync                        # テンプレート変更を既存 worldN.yml に反映（再生成）
 #   make ports                       # ポート割り当てと次に使えるポートを表示
 #   make check-ports                 # ポート重複・UDP 範囲の未設定を検査
-#   make check-net                   # 転送ルールと内部 IP のずれを検査（NAS 等）
-#   make net                         # ワールド用ネットワークを作成（up 時に自動実行）
 #   make dirs                        # マウント先ディレクトリを作成
 #                                    #（up / restart / build 実行時にも自動で走る）
 #
@@ -71,21 +71,6 @@ ifdef BACKUP
   _COMPOSE_FILES += -f docker-compose.backup.yml
 endif
 
-# down で使うファイル。WORLDS を指定していない（＝全部落とす意図の）ときは、
-# 通知・バックアップのコンテナも一緒に落とす。
-# これらが残っていると default ネットワークが削除されず、次の up でネットワーク設定を
-# 変更できない（"has active endpoints" で失敗し、ワールドが1つも起動しなくなる）。
-# 固定 IP やサブネットを変えたあとに踏むため、停止漏れが起きないようにしておく。
-_DOWN_FILES := $(_COMPOSE_FILES)
-ifndef WORLDS
-  ifndef NOTIFY
-    _DOWN_FILES += -f docker-compose.notify.yml
-  endif
-  ifndef BACKUP
-    _DOWN_FILES += -f docker-compose.backup.yml
-  endif
-endif
-
 # コンテナ実行ユーザーの UID/GID。ホスト側ディレクトリの所有者と揃えるために使う。
 # 通常は設定不要で、make 実行ユーザーの値を自動採用する。
 # 別の値にしたい場合だけ .env に PUID= / PGID= を書く（変更後はイメージの再ビルドが必要）。
@@ -131,8 +116,8 @@ else
   _PORT = $(_NEXT_PORT)
 endif
 
-.PHONY: up down restart logs ps build add backup sync dirs ports check-ports \
-        update rollback props check-server check-net net
+.PHONY: up down stop start restart logs ps build add backup sync dirs ports \
+        check-ports update rollback props check-server
 
 # 既存の docker-compose.worldN.yml をテンプレートから再生成する。
 # テンプレート（docker-compose.world{N}.yml.example）を変更したら、
@@ -245,11 +230,27 @@ check-ports:
 	 fi; \
 	 if [ "$$COUNT" != 0 ]; then echo "ポート検査: OK（$$COUNT ワールド）"; fi
 
-up: sync check-ports dirs check-server net
+up: sync check-ports dirs check-server
 	docker compose $(_COMPOSE_FILES) up -d
 
+# コンテナとネットワークを削除する。ネットワークが作り直されるため、ホスト側で
+# 転送ルールを独自管理している環境では、次の up のあとにルールの再適用が必要になる。
+# 日常の停止には stop を使う（コンテナもネットワークも残るので再適用が要らない）。
+#
+# 通知・バックアップも動かしている場合は、それらも落とさないとネットワークが
+# 削除できない（"has active endpoints"）:
+#   make down NOTIFY=true BACKUP=true
 down:
-	docker compose $(_DOWN_FILES) down
+	docker compose $(_COMPOSE_FILES) down
+
+# 日常の停止と起動。コンテナを削除しないので、内部 IP もネットワークもそのまま残る。
+# ホスト側で転送ルールを独自管理している環境でも、ルールの再適用が要らない。
+# 設定（.env / テンプレート / イメージ）を変えたときは down → up が必要。
+stop:
+	docker compose $(_COMPOSE_FILES) stop
+
+start:
+	docker compose $(_COMPOSE_FILES) start
 
 restart: sync check-ports dirs
 	docker compose $(_COMPOSE_FILES) restart
@@ -556,179 +557,3 @@ props:
 
 # ================================================
 # ホスト側の転送ルールとコンテナの内部 IP のずれを検査する
-# ================================================
-# 一部のホスト環境（NAS 製品など）は Docker が作る転送ルール（DNAT）と FORWARD
-# ルールを独自の nftables テーブルに取り込んで管理しており、コンテナやネットワークを
-# 作り直しても自動では更新しない（OS のファイアウォール機能をオフにしていても使われる）。
-# 更新されるのは管理画面でファイアウォール設定を適用したときだけ。
-#
-# 固定 IP とブリッジ名（compose テンプレート）で予防してはいるが、ネットワークを
-# 作り直した直後や、固定化する前から動かしている環境ではずれが残る。ずれていると
-# 同じポートへの接続が通ったり拒否されたり、別のワールドに届いたりする。
-#
-# nft が無い環境（多くの Linux ディストリビューション、Docker Desktop）では
-# 何もせず成功する。環境によっては nft が PATH に無い場所に置かれているため、
-# よくある設置先も探す。
-# ルールの読み取りには root 権限が要るため up / restart には組み込まず任意実行にしてある
-#（毎回 sudo を要求すると、権限が無い環境で警告が出続けてノイズになる）。
-#
-# なお停止中のコンテナでは docker inspect が空文字ではなく "invalid IP" を返すことが
-# あるため、IPv4 の形をしていない値は未取得として扱う（停止しているだけのワールドを
-# 「ずれ」と誤判定し、不要な「適用」を促さないようにするため）。
-#
-# 終了コードは「対処が必要か」の2値にしている（0 = 対処不要、非0 = ずれを検出）。
-# make はレシピが失敗すると自身は常に 2 を返すため、レシピ側で 1 と 2 を分けても
-# 呼び出し側には伝わらない。そのぶん「判定不能」（権限不足・コンテナ未起動・
-# ルールの書式が想定外）は成功扱いにして運用を止めず、表示では決して
-# 「一致しています」と言わないようにしてある。
-#
-#   make check-net        # 検査する
-#   sudo make check-net   # 権限が足りないと言われた場合
-check-net:
-	@_env() { sed -n 's/^'"$$1"'=//p' .env 2>/dev/null | tr -d '\r' | tail -1; }; \
-	 NFT=""; \
-	 if command -v nft >/dev/null 2>&1; then \
-	   NFT=$$(command -v nft); \
-	 else \
-	   for p in /usr/builtin/sbin/nft /usr/sbin/nft /sbin/nft /usr/local/sbin/nft; do \
-	     if [ -x "$$p" ]; then NFT="$$p"; break; fi; \
-	   done; \
-	 fi; \
-	 if [ -z "$$NFT" ]; then \
-	   echo "nft が見つかりません。この環境は検査の対象外です"; \
-	   exit 0; \
-	 fi; \
-	 RULES=$$("$$NFT" list ruleset 2>/dev/null || true); \
-	 if [ -z "$$RULES" ]; then \
-	   echo "nft のルールを読み取れませんでした（root 権限が必要です。ルールが空の場合も同じ表示になります）"; \
-	   echo "  sudo make check-net で実行してください"; \
-	   echo "  make が sudo の PATH に無い環境では: sudo env \"PATH=$$PATH\" make check-net"; \
-	   exit 0; \
-	 fi; \
-	 PROJ=$$(_env COMPOSE_PROJECT_NAME); \
-	 [ -n "$$PROJ" ] || PROJ=$$(basename "$$PWD" | tr 'A-Z' 'a-z' | tr -cd 'a-z0-9_-'); \
-	 BR=$$(docker network inspect "$${PROJ}_default" \
-	        -f '{{index .Options "com.docker.network.bridge.name"}}' 2>/dev/null || true); \
-	 echo "転送ルール（DNAT）の宛先と、コンテナの内部 IP を突き合わせます"; \
-	 echo "  nft: $$NFT"; \
-	 echo ""; \
-	 printf '%-9s %-8s %-16s %-16s %s\n' WORLD PORT CONTAINER_IP RULE_DNAT STATUS; \
-	 ERR=0; CHECKED=0; FOUND=0; \
-	 for f in docker-compose.world[0-9]*.yml; do \
-	   [ -e "$$f" ] || continue; \
-	   N=$$(echo "$$f" | sed 's/^docker-compose\.world\([0-9]*\)\.yml$$/\1/'); \
-	   P=$$(_env "SERVER_PORT_WORLD_$$N"); \
-	   [ -n "$$P" ] || continue; \
-	   IP=$$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' \
-	          "minecraft-edu-world$$N" 2>/dev/null | awk '{print $$1}'); \
-	   echo "$$IP" | grep -qE '^[0-9]+(\.[0-9]+){3}$$' || IP=""; \
-	   RIP=$$(echo "$$RULES" | grep -E "dport[^a-z]*\<$$P\>" \
-	          | grep -oE 'dnat (ip6? )?to [0-9]+(\.[0-9]+){3}' \
-	          | sed 's/.* //' | sort -u | tr '\n' ' ' | sed 's/ $$//'); \
-	   [ -z "$$RIP" ] || FOUND=1; \
-	   if [ -z "$$IP" ]; then \
-	     printf '%-9s %-8s %-16s %-16s %s\n' "world$$N" "$$P" "-(stopped)" "$${RIP:--}" "-"; \
-	     continue; \
-	   fi; \
-	   CHECKED=$$((CHECKED + 1)); \
-	   if [ -z "$$RIP" ]; then \
-	     printf '%-9s %-8s %-16s %-16s %s\n' "world$$N" "$$P" "$$IP" "-(none)" "?"; \
-	   elif [ "$$RIP" = "$$IP" ]; then \
-	     printf '%-9s %-8s %-16s %-16s %s\n' "world$$N" "$$P" "$$IP" "$$RIP" "OK"; \
-	   else \
-	     printf '%-9s %-8s %-16s %-16s %s\n' "world$$N" "$$P" "$$IP" "$$RIP" "ずれ"; \
-	     ERR=1; \
-	   fi; \
-	 done; \
-	 echo ""; \
-	 if [ "$$CHECKED" = 0 ]; then \
-	   echo "判定不能: 起動しているワールドのコンテナが見つかりませんでした"; \
-	   echo "  make up で起動してから実行してください（docker に繋がらない場合も同じ表示になります）"; \
-	   exit 0; \
-	 fi; \
-	 if [ "$$FOUND" = 0 ]; then \
-	   echo "判定不能: このホストのルールから転送先（DNAT）を読み取れませんでした"; \
-	   echo "  ルールの書式がこの検査の想定と違う可能性があります。目視で確認してください:"; \
-	   echo "    sudo $$NFT list ruleset | grep -iE 'dnat|dport'"; \
-	   echo "  ホスト側が独自管理していない環境（通常の Linux）では、この表示で問題ありません"; \
-	   exit 0; \
-	 fi; \
-	 if [ -n "$$BR" ]; then \
-	   if echo "$$RULES" | grep -qE "(iifname|oifname|iif|oif) +\"?$$BR\"?"; then \
-	     echo "ブリッジ名: $$BR（ルールにも現れています）"; \
-	   else \
-	     echo "ブリッジ名: $$BR"; \
-	     echo "警告: このブリッジ名がホストのルールに見当たりません。"; \
-	     echo "      外向き通信が古いルールで止められ、サーバーが起動直後に停止する場合があります"; \
-	     ERR=1; \
-	   fi; \
-	 fi; \
-	 if [ "$$ERR" != 0 ]; then \
-	   echo ""; \
-	   echo "警告: ホストの転送ルールが現在のコンテナと一致していません。"; \
-	   echo "      この状態だと、同じポートへの接続が通ったり拒否されたり、"; \
-	   echo "      別のワールドに届いたりします。次の順番で直してください:"; \
-	   echo ""; \
-	   echo "        1. ホストの管理画面でファイアウォール設定を適用する（ルールが作り直される）"; \
-	   echo "        2. make restart"; \
-	   echo ""; \
-	   echo "      ※ 順番が逆だとサーバーが外部サービスへ接続できず、起動直後に停止します"; \
-	   echo "        （コンテナは残るので気づきにくい）"; \
-	   exit 1; \
-	 fi; \
-	 echo "転送ルールは一致しています（$$CHECKED ワールドを検査）"
-
-# ================================================
-# ワールド用のネットワークを作る（up の前に自動実行）
-# ================================================
-# compose に管理させず、ここで一度だけ作って external として参照する。
-#
-# compose 管理だと make down でネットワークごと消え、次の up で作り直される。
-# ブリッジ名を固定していても作り直せばインターフェース番号（ifindex）が変わるため、
-# ホスト側のルールがインターフェース番号で書かれている環境では再びずれてしまう。
-# 外で作っておけば make down でも残り、作り直しの機会そのものが無くなる。
-#
-# 既にある場合は .env の設定と食い違っていないかだけ確認する（勝手に作り直さない。
-# 作り直すとホスト側のルールとずれ、直すには管理画面での「適用」が必要になるため）。
-net:
-	@set -e; \
-	 _env() { sed -n 's/^'"$$1"'=//p' .env 2>/dev/null | tr -d '\r' | tail -1; }; \
-	 NAME=$$(_env DOCKER_NETWORK_NAME); NAME=$${NAME:-mcedu-net}; \
-	 PREFIX=$$(_env DOCKER_SUBNET_PREFIX); PREFIX=$${PREFIX:-172.30}; \
-	 BR=$$(_env DOCKER_BRIDGE_NAME); BR=$${BR:-br-mcedu}; \
-	 if ! echo "$$PREFIX" | grep -qE '^[0-9]{1,3}\.[0-9]{1,3}$$'; then \
-	   echo "エラー: DOCKER_SUBNET_PREFIX は IPv4 の最初の2オクテットで指定してください（例: 172.30）"; \
-	   echo "        今の値: $$PREFIX"; \
-	   exit 1; \
-	 fi; \
-	 if [ $${#BR} -gt 15 ]; then \
-	   echo "エラー: DOCKER_BRIDGE_NAME は15文字以内にしてください（Linux のインターフェース名の制限）"; \
-	   echo "        今の値: $$BR（$${#BR}文字）"; \
-	   exit 1; \
-	 fi; \
-	 SUBNET="$$PREFIX.0.0/16"; RANGE="$$PREFIX.0.0/24"; \
-	 if docker network inspect "$$NAME" >/dev/null 2>&1; then \
-	   CS=$$(docker network inspect "$$NAME" -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' | awk '{print $$1}'); \
-	   CB=$$(docker network inspect "$$NAME" -f '{{index .Options "com.docker.network.bridge.name"}}'); \
-	   if [ "$$CS" != "$$SUBNET" ] || [ "$$CB" != "$$BR" ]; then \
-	     echo "エラー: ネットワーク $$NAME の設定が .env と食い違っています"; \
-	     echo "          サブネット: 現在 $$CS / .env $$SUBNET"; \
-	     echo "          ブリッジ名: 現在 $$CB / .env $$BR"; \
-	     echo ""; \
-	     echo "        作り直すには、いったん全部停止してからネットワークを削除します:"; \
-	     echo "          make down"; \
-	     echo "          docker network rm $$NAME"; \
-	     echo "          make up"; \
-	     echo ""; \
-	     echo "        ※ 作り直すとホスト側の転送ルールとずれます。up のあとに"; \
-	     echo "          管理画面でファイアウォール設定を適用し、make restart してください"; \
-	     exit 1; \
-	   fi; \
-	 else \
-	   docker network create --subnet "$$SUBNET" --ip-range "$$RANGE" \
-	     -o com.docker.network.bridge.name="$$BR" "$$NAME" >/dev/null; \
-	   echo "ネットワークを作成しました: $$NAME（$$SUBNET / 自動割り当て $$RANGE / ブリッジ $$BR）"; \
-	   echo "  ※ 作成直後はホスト側の転送ルールがまだ古い状態です。ホスト側でルールを"; \
-	   echo "    独自管理している環境（NAS 等）では、管理画面でファイアウォール設定を"; \
-	   echo "    適用してから make restart してください（make check-net で確認できます）"; \
-	 fi

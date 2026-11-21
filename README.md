@@ -155,8 +155,10 @@ make up BACKUP=true               # バックアップサービスも一緒に�
 
 # その他
 make build                        # イメージを再ビルド
-make down                         # 全ワールドを停止
+make stop                         # 全ワールドを停止（コンテナは残す。日常はこちら）
+make start                        # stop したワールドを起動
 make restart                      # 全ワールドを再起動
+make down                         # コンテナとネットワークを削除（設定変更時）
 make logs N=1                     # ワールド1 のログを表示
 make ps                           # 全コンテナの状態を表示
 make backup                       # 今すぐ手動バックアップ
@@ -164,8 +166,6 @@ make add                          # 新しいワールドを追加（ポート�
 make add PORT=19500               # ポートを明示して追加（100の倍数）
 make ports                        # ポート割り当てと次に使えるポートを表示
 make check-ports                  # ポート重複・UDP 範囲の未設定を検査（up 時に自動実行）
-sudo make check-net               # 転送ルールと内部 IP のずれを検査（NAS 等）
-make net                          # ワールド用ネットワークを作成（up 時に自動実行）
 make dirs                         # マウント先ディレクトリを作成（up 時に自動実行）
 
 # サーバーバイナリの更新
@@ -311,13 +311,7 @@ make up
 | コンテナの内部 IP | 転送先が別のワールドや存在しない IP を指す → 接続が拒否される、別のワールドに届く |
 | ブリッジ名（`br-<id>`） | 新しいブリッジからの外向き通信が FORWARD で通らない → サーバーが Microsoft のサービスへ接続できず起動直後に停止する |
 
-ルールの確認にはホスト側で次を使います。`iptables-legacy` の nat テーブルは空で、ルールは nft 側にあることが多いです。
-
-```bash
-sudo nft list ruleset
-```
-
-> `nft` が PATH に無い環境もあります。その場合は `find / -name nft -type f 2>/dev/null` などで探してフルパスで実行してください（`make check-net` はよくある設置先も自動で探します）。
+ルールの確認にはホスト側で `sudo nft list ruleset` を使います（`iptables-legacy` の nat テーブルは空で、ルールは nft 側にあることが多いです）。
 
 **対処（順番が重要）**
 
@@ -329,29 +323,13 @@ make restart
 
 > **逆にすると直りません。** 先に再起動すると、古い FORWARD ルールのままサーバーが起動し、Microsoft のサービスへ接続できずに停止します。コンテナは残るので、一見起動しているように見えます。
 
-ずれているかどうかは次のコマンドで確認できます。
+直ったかどうかは、**別の端末から実際に繋いで**確認するのが確実です。
 
 ```bash
-sudo make check-net
+nc -z <公開アドレス> <シグナリングポート>   # make ports で確認できます
 ```
 
-コンテナの実際の内部 IP と、ホストのルールの転送先を突き合わせて、食い違っていれば警告します。root 権限が必要なので `make up` には組み込んでおらず、必要なときに手で実行します。
-
-表示される `STATUS` の読み方:
-
-| STATUS | 意味 | 対処 |
-|---|---|---|
-| `OK` | ルールの転送先がコンテナの IP と一致 | 不要 |
-| `ずれ` | 転送先が別の IP を指している | **下記の対処が必要** |
-| `?` | そのポートの転送ルールが見つからない | 下記の対処を試す |
-| `-(stopped)` | コンテナが起動していない | `make up` してから再実行 |
-
-次の場合は「判定不能」と表示され、**`一致しています` とは出ません**。表示の指示に従ってください。
-
-- root 権限が無くルールを読めない → `sudo make check-net`
-- ワールドが1つも起動していない → `make up` してから再実行
-- ルールの書式がこの検査の想定と違う → 表示されるコマンドで目視確認
-- `nft` が無い環境（多くの Linux ディストリビューション、Docker Desktop）→ 対象外なので問題なし
+転送ルールを実際に通るので、ルールの中身を調べるより確実です。`transport=nethernet` ではゲーム通信が別の UDP 範囲を使うため、最終確認は**クライアント1台で実際に入室する**のが確実です。
 
 **予防（この構成で既に入れている対策）**
 
@@ -365,27 +343,17 @@ sudo make check-net
 
 自動割り当てを `.0.x` に閉じ込めてあるので、通知やバックアップのコンテナがワールドの固定 IP を先に取ることはありません。ワールド番号は **1〜254** の範囲で使えます。
 
-さらに、**このネットワークは compose の管理外**です。`make net`（`make up` の前に自動実行）が一度だけ作成し、compose は `external` として参照します。
+これで、**コンテナを作り直しても適用は不要**になります（`make restart`、`make build` 後の `make up`、バックアップ中の停止起動など）。適用が必要なのは**ネットワークが作り直されたとき**、つまり `make down` → `make up` をしたときだけです。
 
-compose に管理させると `make down` でネットワークごと削除され、次の `make up` で作り直されます。ブリッジ名を固定していても、作り直せばインターフェース番号（ifindex）は変わるため、ホスト側のルールがインターフェース番号で書かれている場合は再びずれます。外で作っておけば `make down` でも残るので、**作り直しの機会そのものがなくなります**。
-
-```bash
-# ホスト側のルールが名前（iifname）と番号（iif）のどちらで書かれているかは、これで分かります
-sudo nft list ruleset | grep -oE '(iifname|oifname|iif|oif) [^ ]+' | sort -u
-```
-
-サブネットやブリッジ名を変えたいときだけ、ネットワークを作り直します。`make net` が設定の食い違いを検出して手順を案内します。
+**日常の停止と起動には `make stop` / `make start` を使ってください。**コンテナを削除しないので、内部 IP もネットワークもそのまま残り、適用が不要です。
 
 ```bash
-make down
-docker network rm mcedu-net   # .env の DOCKER_NETWORK_NAME
-make up                        # make net が新しい設定で作り直す
-# このあと管理画面でファイアウォール設定を適用し、make restart
+make stop     # 日常の停止（コンテナもネットワークも残る）
+make start    # 起動
+make down     # 設定を変えるときだけ。ネットワークも削除される → 次の up のあとに適用が必要
 ```
 
 **既存環境でこの設定を反映するとき**
-
-`make restart` では反映されません。ネットワークを作り直す必要があります。
 
 ```bash
 git pull
@@ -394,18 +362,13 @@ make build       # healthcheck.sh がイメージに含まれるため必要
 make up
 # この時点でホストの管理画面でファイアウォール設定を適用する
 make restart
-sudo make check-net   # 一致したことを確認
 ```
 
-> **この移行のあとは、`make down` でネットワークが消えなくなります**（`make net` が作る external ネットワークに移るため）。つまり「適用」が必要なのは、この移行時と、サブネットやブリッジ名を変えたときだけになります。
->
-> **`make down` は通知・バックアップのコンテナも一緒に落とします**（`WORLDS=` を指定しないとき）。移行前の（compose が管理していた）ネットワークを消すために必要です。これらが残っているとネットワークが削除されず、`network ... has active endpoints` で失敗します。
->
 > `make build` を省くと、ヘルスチェックの改善が反映されません（`healthcheck.sh` はイメージに COPY されるため、`make up` だけでは入れ替わりません）。
 >
-> 既定のサブネット `172.30.0.0/16` が他の Docker ネットワークと重なっていると、`Pool overlaps with other one on this address space` や `networks have overlapping IPv4` で起動できません。この帯は Docker が自動で払い出す範囲（172.17〜172.31）の内側なので、多数のコンテナを動かしているホストでは起こりえます。その場合は `.env` の `DOCKER_SUBNET_PREFIX` を `10.80` のように範囲外へ変えてください。
+> 通知・バックアップも動かしている場合は `make down NOTIFY=true BACKUP=true` にしてください。これらが残っているとネットワークが削除されず、`network ... has active endpoints` で失敗します。
 >
-> ブリッジ名（既定 `br-mcedu`）が他の Docker ネットワークで既に使われている場合も起動できません。その場合は `.env` の `DOCKER_BRIDGE_NAME` を別の名前（15文字以内）に変えてください。
+> 既定のサブネット `172.30.0.0/16` やブリッジ名 `br-mcedu` が他の Docker ネットワークと衝突していると起動できません（`Pool overlaps`、`networks have same bridge name` 等）。その場合は `.env` の `DOCKER_SUBNET_PREFIX` / `DOCKER_BRIDGE_NAME` を変えてください。
 
 ---
 

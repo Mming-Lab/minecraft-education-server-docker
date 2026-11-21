@@ -54,7 +54,7 @@ source = '''
     .notify = true
   } else if match(msg, r'Could not connect to Minecraft services') {
     .title = "[OFFLINE] minecraft-edu-" + world
-    .body = "Microsoft のサービスへ接続できませんでした。ホスト側の転送ルールを確認してください（sudo make check-net）"
+    .body = "Microsoft のサービスへ接続できませんでした。ホスト側の転送ルールを確認してください"
     .notify = true
   } else if match(msg, r'successfully hosted in tenant') {
     .title = "[UP] minecraft-edu-" + world
